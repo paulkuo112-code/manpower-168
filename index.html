@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>安裝師人力 / 動線規劃板</title>
+<style>
+  :root{
+    --bg:#f4f5f7;
+    --panel:#ffffff;
+    --panel-2:#f5f6f8;
+    --border:#e0e3e8;
+    --text:#20242c;
+    --muted:#6b7280;
+    --line:#6F96A2;       /* Ocean Slate - morandi accent, was teal */
+    --line-bg:#E7EEF0;
+    --line-border:#B7CDD2;
+    --warn:#A9776D;
+    --warn-bg:#F1E6E2;
+    --warn-border:#D9BFB6;
+    --danger:#B15E52;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);height:100%;font-family:var(--sans);}
+  ::-webkit-scrollbar{height:10px;width:10px;}
+  ::-webkit-scrollbar-thumb{background:#c7cdd6;border-radius:6px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  .app{display:flex;flex-direction:column;height:100vh;}
+
+  /* ---------- Top nav ---------- */
+  .navbar{
+    display:flex;align-items:center;gap:6px;padding:10px 18px 0;background:var(--panel);
+    border-bottom:1px solid var(--border);flex-shrink:0;
+  }
+  .navtab{
+    padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;
+    border-bottom:2px solid transparent;
+  }
+  .navtab.active{color:var(--line);border-bottom-color:var(--line);}
+
+  /* ---------- Header ---------- */
+  .topbar{padding:12px 18px 10px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+  .titlerow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .titlerow h1{font-size:16px;margin:0;font-weight:700;}
+  .titlerow .sub{color:var(--muted);font-size:12px;}
+  .stats{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;}
+  .stat{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center;}
+  .stat b{color:var(--text);font-size:13px;}
+  .stat.warn{border-color:var(--warn-border);background:var(--warn-bg);color:#7A4F45;}
+  .stat.warn b{color:var(--warn);}
+  .toolbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;}
+  .search{flex:1;min-width:160px;max-width:280px;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:13px;outline:none;}
+  .search::placeholder{color:#a3a9b3;}
+  .btn{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 12px;font-size:12.5px;cursor:pointer;white-space:nowrap;}
+  .btn:hover{border-color:#b7bec9;}
+  .btn.primary{background:var(--line);border-color:var(--line);color:#fff;}
+  .btn.primary:hover{background:#5C8189;}
+  .save-indicator{font-size:11px;color:var(--muted);margin-left:auto;}
+
+  .vacancy-banner{margin-top:10px;background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:8px;padding:8px 12px;font-size:12.5px;color:#7A4F45;display:none;}
+  .vacancy-banner.show{display:block;}
+  .vacancy-banner b{color:var(--warn);}
+  .vacancy-chip{display:inline-block;background:#EFE0D8;border:1px solid #D9BFB6;color:#7A4F45;border-radius:6px;padding:2px 7px;margin:3px 4px 0 0;font-size:11.5px;cursor:pointer;}
+  .vacancy-chip:hover{background:#E6D2C8;}
+  .vacancy-region{margin-top:8px;padding-top:8px;border-top:1px dashed var(--warn-border);}
+  .vacancy-region:first-of-type{border-top:none;}
+  .vacancy-region-name{font-size:12px;font-weight:700;margin-right:6px;}
+
+  /* ---------- Board ---------- */
+  .board{flex:1;display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:14px 18px;scroll-snap-type:x proximity;}
+  .column{flex:0 0 264px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:12px;scroll-snap-align:start;max-height:100%;overflow:hidden;}
+  .column.staging{border-style:dashed;border-color:#c7cdd6;background:#fafbfc;}
+  .col-banner{height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14.5px;font-weight:700;letter-spacing:.3px;padding:0 10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .column.staging .col-banner{background:repeating-linear-gradient(45deg,#c7cdd6,#c7cdd6 6px,#dfe3e8 6px,#dfe3e8 12px)!important;color:#5a6472;}
+  .col-head{padding:11px 12px 10px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .col-title{font-weight:700;font-size:13.5px;}
+  .col-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+  .col-pill{background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:10.5px;color:var(--muted);white-space:nowrap;}
+  .col-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:60px;}
+  .col-body.drop-hover{background:var(--line-bg);outline:2px dashed var(--line);outline-offset:-4px;}
+  .col-empty-hint{color:#a3a9b3;font-size:11.5px;text-align:center;padding:14px 4px;border:1px dashed var(--border);border-radius:8px;}
+
+  /* ---------- Group card ---------- */
+  .group{border:1px solid var(--border);border-left:8px solid #ccc;border-radius:10px;padding:8px 9px;position:relative;transition:box-shadow .15s;background:#fff;}
+  .group.dragging{opacity:0.35;}
+  .group.drop-hover{box-shadow:0 0 0 2px var(--line) inset;}
+  .group.drop-before{box-shadow:0 3px 0 0 var(--line) inset;}
+  .group.drop-after{box-shadow:0 -3px 0 0 var(--line) inset;}
+  .group.drop-merge{box-shadow:0 0 0 3px var(--warn) inset;background:var(--warn-bg)!important;}
+  .group.dim{opacity:0.3;}
+  .group-top{display:flex;align-items:center;gap:6px;}
+  .handle{cursor:grab;color:#7b8695;font-size:19px;line-height:1;padding:5px 7px;touch-action:none;flex-shrink:0;border-radius:6px;
+    -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+    -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;}
+  .handle:active{cursor:grabbing;background:var(--panel-2);}
+  .handle:active{cursor:grabbing;}
+  .colorswatch{width:14px;height:14px;border-radius:4px;flex-shrink:0;cursor:pointer;border:1px solid rgba(0,0,0,.15);}
+  .glabel{flex:1;font-size:12px;font-weight:600;background:transparent;border:none;color:var(--text);outline:none;border-bottom:1px dashed transparent;padding:1px 0;min-width:0;}
+  .glabel:focus{border-bottom-color:var(--line);}
+  .gcount{font-size:10.5px;color:var(--muted);flex-shrink:0;}
+  .group-del{font-size:12px;color:#c7cdd6;cursor:pointer;flex-shrink:0;padding:0 2px;}
+  .group-del:hover{color:var(--danger);}
+
+  .store-line{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);margin-top:5px;padding:3px 5px;background:var(--panel-2);border-radius:6px;flex-wrap:wrap;touch-action:none;
+    -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+    -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;}
+  .store-code{font-family:var(--mono);font-size:10.5px;color:#8b93a0;flex-shrink:0;}
+  .store-name{color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .store-x{cursor:pointer;color:#a3a9b3;font-size:12px;flex-shrink:0;padding:0 2px;}
+  .store-x:hover{color:var(--danger);}
+  .perf-add{cursor:pointer;color:var(--line);font-size:10.5px;flex-shrink:0;}
+  .perf-line{width:100%;font-size:10px;color:#8b93a0;padding-left:2px;}
+
+  .installer-slot{margin-top:7px;border-top:1px dashed var(--border);padding-top:6px;min-height:30px;display:flex;flex-direction:column;gap:5px;}
+  .installer-slot.drop-hover{background:var(--line-bg);border-radius:6px;}
+  .installer-empty{font-size:11px;color:#a3a9b3;border:1px dashed #c7cdd6;border-radius:6px;padding:4px 8px;width:100%;text-align:center;}
+  .installer-chip{display:flex;align-items:center;gap:6px;background:var(--line-bg);border:1px solid var(--line-border);border-radius:7px;padding:4px 7px;width:100%;}
+  .installer-chip:active{cursor:grabbing;}
+  .installer-chip.dragging{opacity:0.35;}
+  .installer-chip .iname{font-size:12px;font-weight:600;color:#3F5D63;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .installer-chip .ititle{font-size:9.5px;color:#6F96A2;background:#DCE7E9;padding:1px 5px;border-radius:4px;flex-shrink:0;}
+  .installer-chip .itenure{font-size:9.5px;color:#6F96A2;flex-shrink:0;}
+  .installer-chip .ix{cursor:pointer;color:#7FA0A6;font-size:12px;padding:0 2px;flex-shrink:0;}
+  .installer-chip .ix:hover{color:var(--danger);}
+  .add-installer-btn{font-size:10.5px;color:var(--line);cursor:pointer;text-align:center;border:1px dashed var(--line-border);border-radius:6px;padding:3px;}
+  .add-installer-btn:hover{background:var(--line-bg);}
+
+  .loose-installer{background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:8px;padding:5px 8px;display:flex;align-items:center;gap:6px;}
+  .loose-installer.dragging{opacity:0.35;}
+  .loose-installer .iname{font-size:12px;font-weight:600;color:#7A4F45;flex:1;}
+  .loose-installer .ititle{font-size:9.5px;color:#7A4F45;}
+  .loose-installer .itenure{font-size:9.5px;color:#7A4F45;}
+  .loose-tag{font-size:9.5px;color:#8C6B58;margin-left:2px;}
+
+  .drag-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:0.95;transform:translate(-50%,-50%);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:10px;}
+
+  .footer-hint{padding:8px 18px 12px;font-size:11px;color:#9aa1ab;text-align:center;flex-shrink:0;border-top:1px solid var(--border);}
+
+  /* ---------- Overview / print view (org-chart style) ---------- */
+  .overview-view{padding:24px 28px 60px;max-width:none;margin:0 auto;width:100%;overflow-y:auto;flex:1;}
+  .ov-toolbar{display:flex;justify-content:flex-end;margin-bottom:16px;max-width:960px;margin-left:auto;margin-right:auto;}
+  .ov-region{margin-bottom:36px;}
+  .ov-region-title{display:flex;align-items:baseline;gap:10px;justify-content:center;margin-bottom:14px;flex-wrap:wrap;}
+  .ov-region-title h2{margin:0;font-size:16px;}
+  .ov-region-stats{font-size:11.5px;color:var(--muted);}
+  .ov-loose{font-size:12px;color:var(--warn);text-align:center;margin:0 0 10px;}
+  .ov-scroll{overflow-x:auto;padding-bottom:14px;}
+
+  .org-tree, .org-tree ul{
+    display:flex; justify-content:center; list-style:none; margin:0; padding-top:24px; position:relative;
+  }
+  .org-tree li{
+    display:flex; flex-direction:column; align-items:center; position:relative; padding:24px 10px 0 10px;
+  }
+  .org-tree li::before, .org-tree li::after{
+    content:''; position:absolute; top:0; right:50%; border-top:2px solid var(--tree-line,#c9ced5); width:50%; height:24px;
+  }
+  .org-tree li::after{ right:auto; left:50%; border-left:2px solid var(--tree-line,#c9ced5); }
+  .org-tree li:only-child::after, .org-tree li:only-child::before{ display:none; }
+  .org-tree li:only-child{ padding-top:0; }
+  .org-tree li:first-child::before, .org-tree li:last-child::after{ border:0 none; }
+  .org-tree li:last-child::before{ border-right:2px solid var(--tree-line,#c9ced5); border-radius:0 6px 0 0; }
+  .org-tree li:first-child::after{ border-radius:6px 0 0 0; }
+  .org-tree ul::before{
+    content:''; position:absolute; top:0; left:50%; border-left:2px solid var(--tree-line,#c9ced5); width:0; height:24px;
+  }
+  .org-tree > li{ padding-top:0; }
+  .org-tree > li::before, .org-tree > li::after{ display:none; }
+
+  .org-node{
+    display:inline-flex; flex-direction:column; align-items:center; gap:2px;
+    border:1.5px solid var(--border); border-radius:9px; padding:8px 14px; background:#fff;
+    min-width:86px; box-shadow:0 1px 3px rgba(0,0,0,.06); white-space:nowrap;
+  }
+  .org-root{ color:#fff; font-weight:700; font-size:13.5px; border:none; padding:9px 20px; box-shadow:0 2px 6px rgba(0,0,0,.12); }
+  .org-route-label{ font-weight:700; font-size:12px; }
+  .org-store{ font-weight:700; font-size:12px; }
+  .org-inst{ font-size:11px; color:#3F5D63; font-weight:600; }
+  .org-node.org-vacant{ border:1.5px dashed var(--warn-border); background:var(--warn-bg); }
+  .org-node.org-vacant .org-inst{ color:var(--warn); }
+  .org-code{ font-family:var(--mono); font-size:9.5px; color:var(--muted); font-weight:400; }
+  .org-perf{ font-size:9.5px; color:#6F96A2; font-weight:600; }
+
+  @media print{
+    .navbar, .ov-toolbar{display:none!important;}
+    body, .app{background:#fff!important;}
+    .overview-view{padding:0;}
+    .org-tree, .org-node{ print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+    .ov-region{break-inside:avoid-page;}
+  }
+
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,24,30,.35);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;}
+  .modal-box{background:#fff;border-radius:12px;padding:20px;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25);}
+  .modal-box h4{margin:0 0 8px;font-size:14.5px;}
+  .modal-box p{margin:0 0 14px;font-size:12.5px;color:var(--muted);white-space:pre-wrap;line-height:1.6;}
+  .modal-field{margin-bottom:10px;}
+  .modal-field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px;}
+  .modal-field input{width:100%;border:1px solid var(--border);border-radius:7px;padding:7px 9px;font-size:13px;outline:none;}
+  .modal-field input:focus{border-color:var(--line);}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
+
+  /* ---------- Paste-import view ---------- */
+  .paste-view{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:18px;max-width:840px;margin:0 auto;width:100%;}
+  .paste-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .paste-card h3{margin:0 0 4px;font-size:14.5px;}
+  .paste-card p{margin:2px 0 10px;font-size:12.5px;color:var(--muted);line-height:1.6;}
+  .paste-format{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:11.5px;color:#3a4048;margin-bottom:10px;white-space:pre-wrap;}
+  .paste-textarea{width:100%;min-height:110px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--mono);font-size:12px;resize:vertical;outline:none;}
+  .paste-textarea:focus{border-color:var(--line);}
+  .paste-actions{display:flex;gap:8px;margin-top:8px;align-items:center;}
+  .paste-result{font-size:12px;margin-top:8px;padding:8px 10px;border-radius:8px;display:none;white-space:pre-wrap;}
+  .paste-result.ok{display:block;background:#e7f7ee;color:#1b6b3d;border:1px solid #b7e6c9;}
+  .paste-result.err{display:block;background:#fdecec;color:#a02323;border:1px solid #f3c2c2;}
+  .region-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .region-chip{display:inline-block;border:1.5px solid #ccc;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;}
+  .region-row{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--border);}
+  .region-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+  .region-row-name{flex:1;font-size:13px;font-weight:600;}
+  .region-row-actions{display:flex;gap:12px;align-items:center;flex-shrink:0;}
+  .region-link{font-size:11.5px;color:var(--line);cursor:pointer;white-space:nowrap;}
+  .region-link:hover{text-decoration:underline;}
+  .region-del{cursor:pointer;color:#c7cdd6;font-size:13px;}
+  .region-del:hover{color:var(--danger);}
+  .region-addstore-form{display:flex;gap:6px;padding:6px 2px 10px 19px;flex-wrap:wrap;align-items:center;}
+
+  @media (max-width:640px){
+    .column{flex:0 0 78vw;}
+    .titlerow h1{font-size:15px;}
+    .paste-view{padding:14px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="navbar">
+    <div class="navtab active" data-tab="board">動線規劃板</div>
+    <div class="navtab" data-tab="overview">總覽頁（閱讀／列印用）</div>
+    <div class="navtab" data-tab="paste">資料貼上（門市／安裝師／業績）</div>
+  </div>
+
+  <div id="view-board" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+    <div class="topbar">
+      <div class="titlerow">
+        <h1>🧭 安裝師人力 / 動線規劃板</h1>
+        <span class="sub">拖曳門市卡片、安裝師卡片來重新分組動線</span>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="toolbar">
+        <input class="search" id="search" placeholder="搜尋門市代號 / 門市名 / 安裝師姓名..." />
+        <button class="btn" id="expandVacancy">缺口清單</button>
+        <button class="btn" id="resetBtn">重置回原始資料</button>
+        <span class="save-indicator" id="saveIndicator">已載入</span>
+      </div>
+      <div class="vacancy-banner" id="vacancyBanner"></div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="footer-hint">💡 拖「⠿」：放到別張卡片正中間（會出現橘色框）＝合併成同一動線；放到卡片上緣／下緣＝只是調整順序。拖安裝師名牌到指派欄可以疊加多位；點左側色點換群組顏色；點標題可改動線名稱。資料自動儲存。</div>
+  </div>
+
+  <div id="view-overview" class="overview-view" style="display:none;"></div>
+
+  <div id="view-paste" class="paste-view" style="display:none;"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============ Region + palette defs ============
+  const STAGE_DEF = {id:'stage', name:'空位區 / 暫存區', color:'#B0B4BB'};
+  const REGION_SEED = [
+    {id:'a1', name:'大北A區', color:'#CFA8B0'},
+    {id:'a2', name:'大北B區', color:'#A2B0CE'},
+    {id:'b1', name:'桃竹苗區', color:'#BFA5BE'},
+    {id:'c1', name:'中彰區',   color:'#A48898'},
+    {id:'d1', name:'雲嘉南區', color:'#A3C2C1'},
+    {id:'e1', name:'高屏區',   color:'#6F96A2'},
+    {id:'f1', name:'花東區',   color:'#A89CAF'}
+  ];
+  const NEW_REGION_COLOR_PALETTE = ['#C6BBC6','#9CAEDB','#87A4BC','#A5C5C2','#C7D1D2','#90A7A5','#92ADAF','#D6C7D9','#B9A5BB','#C8B4D0','#D9CBE0','#BDAECF'];
+  function allColumns(){ return [...state.regions, STAGE_DEF]; }
+
+  const GROUP_PALETTE = [
+    {name:'預設',   tag:'#9aa1ab', bg:'#ffffff'},
+    {name:'玫瑰',   tag:'#CFA8B0', bg:'#F8EFF0'},
+    {name:'薰衣草', tag:'#BFA5BE', bg:'#F5EEF3'},
+    {name:'藍灰',   tag:'#A2B0CE', bg:'#EEF1F6'},
+    {name:'知更藍', tag:'#9CAEDB', bg:'#EDF0F8'},
+    {name:'海洋',   tag:'#6F96A2', bg:'#E7EEF0'},
+    {name:'海霧綠', tag:'#A3C2C1', bg:'#EFF5F4'},
+    {name:'梅子',   tag:'#A48898', bg:'#F2ECEE'}
+  ];
+
+  // [code, name, installerName|null, title, tenure]
+  const RAW = {
+    a1: [
+      ['016','建國門市',null], ['018','永和門市','吳孟恒','安裝師','0年278天'],
+      ['032','土城門市','陳星愷','安裝師','11年357天'], ['034','汐止門市','陳柏錚','安裝師','22年302天'],
+      ['047','內湖門市','蘇泊狄','安裝師','8年309天'], ['067','大安門市','陳建利','安裝師組長','21年193天'],
+      ['074','蘆洲門市','林勝祥','安裝師','23年300天'], ['077','民生門市','陳世明','安裝師','22年114天'],
+      ['079','安康門市',null], ['093','指南門市',null], ['123','北投門市',null],
+      ['126','古亭門市','方琮右','安裝師組長','9年67天'], ['173','江子翠門市',null],
+      ['178','天母德行門市','黃培鈞','安裝師','11年57天'], ['179','板橋門市','林見儒','安裝師','4年276天']
+    ],
+    a2: [
+      ['020','基隆門市','劉亮展','安裝師','5年6天'], ['088','淡水門市','林哲瑋','安裝師','4年36天'],
+      ['107','三峽門市',null], ['141','承德門市',null], ['147','林口門市','張竣維','安裝師','4年44天'],
+      ['176','新莊幸福門市',null], ['184','羅東門市',null], ['186','新店旗艦門市','杜昱璋','安裝師','3年214天'],
+      ['188','淡水複合門市',null]
+    ],
+    b1: [
+      ['014','中壢門市','簡哲名','安裝師','2年55天'], ['040','八德門市',null], ['045','竹北門市',null],
+      ['085','南崁門市','翁胤展','安裝師','2年104天'], ['087','平鎮門市',null],
+      ['103','經國門市','蔣定宇','安裝師','2年36天'], ['105','內壢門市',null],
+      ['108','楊梅門市','范郁軒','安裝師','1年355天'], ['114','桃園中正門市','蔡抒奇','安裝師','11年6天'],
+      ['125','高鐵新竹門市',null], ['152','中央門市','劉俊緯','安裝師','3年233天'], ['183','高鐵桃園門市',null]
+    ],
+    c1: [
+      ['012','金馬門市','魏祥益','安裝師','11年358天'], ['037','文心門市','利文清','安裝師組長','10年296天'],
+      ['046','大雅門市',null], ['053','員林門市',null], ['062','豐原門市',null],
+      ['068','崇德門市','林祐誠','安裝師','4年65天'], ['091','沙鹿門市','潘翊達','安裝師','4年308天']
+    ],
+    d1: [
+      ['006','嘉義門市','陳立霖','安裝師組長','7年38天'], ['026','新營門市',null],
+      ['081','仁德門市','杜宏明','助理安裝師','0年127天'], ['100','斗六門市',null], ['121','永華門市',null],
+      ['165','六甲頂門市','楊世丞','安裝師','11年160天'], ['167','東門門市','陳品宏','安裝師組長','15年243天'],
+      ['172','虎尾門市','邱升塏','安裝師','1年248天'], ['181','和緯門市',null], ['185','南科善化門市',null]
+    ],
+    e1: [
+      ['048','澄清門市','吳家和','安裝師','3年213天'], ['051','明誠門市',null], ['132','大順門市',null],
+      ['142','屏東門市','蔡松村','助理安裝師','0年22天'], ['154','博大門市','余孟翰','安裝師','6年174天'],
+      ['164','夢時代門市','蔡易穎','安裝師','1年275天'], ['170','右昌門市','林天翔','安裝師','6年321天'],
+      ['177','五甲門市',null]
+    ],
+    f1: [
+      ['182','花蓮門市',null], ['187','台東門市',null]
+    ]
+  };
+
+  function buildInitialState(){
+    let storeSeq=1, groupSeq=1, instSeq=1;
+    const stores={}, groups=[], installers={};
+    const regions=REGION_SEED.map(r=>({...r}));
+    regions.forEach(region=>{
+      (RAW[region.id]||[]).forEach(row=>{
+        const [code,name,iname,title,tenure]=row;
+        const sid='s'+(storeSeq++);
+        stores[sid]={code,name,perf:null};
+        const installerIds=[];
+        const gid='g'+(groupSeq++);
+        if(iname){
+          const instId='i'+(instSeq++);
+          installers[instId]={name:iname,title,tenure,location:{type:'group',groupId:gid}};
+          installerIds.push(instId);
+        }
+        groups.push({id:gid,columnId:region.id,storeIds:[sid],installerIds,label:null,colorIdx:0});
+      });
+    });
+    return {stores,groups,installers,regions,version:3};
+  }
+
+  // ============ State + persistence ============
+  let state=null;
+  let saveTimer=null;
+  const saveIndicator=document.getElementById('saveIndicator');
+  const STORAGE_KEY='install-planner-state';
+
+  // Uses Claude's window.storage when running as a Claude artifact; automatically falls back
+  // to the browser's own localStorage when this file is hosted/opened outside Claude.ai
+  // (e.g. on your own domain, or opened directly as a local file).
+  const storageAdapter = {
+    async get(key){
+      if(typeof window.storage!=='undefined' && window.storage && window.storage.get){
+        return await window.storage.get(key, false);
+      }
+      try{
+        const raw=localStorage.getItem(key);
+        return raw ? {key, value:raw} : null;
+      }catch(e){ return null; }
+    },
+    async set(key, value){
+      if(typeof window.storage!=='undefined' && window.storage && window.storage.set){
+        return await window.storage.set(key, value, false);
+      }
+      try{
+        localStorage.setItem(key, value);
+        return {key, value};
+      }catch(e){ return null; }
+    }
+  };
+
+  function scheduleSave(){
+    saveIndicator.textContent='儲存中...';
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(async ()=>{
+      try{
+        const ok=await storageAdapter.set(STORAGE_KEY, JSON.stringify(state));
+        saveIndicator.textContent= ok ? '已自動儲存 ✓' : '儲存失敗（僅暫存於此頁）';
+      }catch(e){ saveIndicator.textContent='儲存失敗（僅暫存於此頁）'; }
+    }, 450);
+  }
+
+  function migrateIfNeeded(s){
+    // migrate old single-installerId groups to installerIds array
+    s.groups.forEach(g=>{
+      if(g.installerId!==undefined){
+        g.installerIds = g.installerId ? [g.installerId] : [];
+        delete g.installerId;
+      }
+      if(!g.installerIds) g.installerIds=[];
+      if(g.colorIdx===undefined) g.colorIdx=0;
+    });
+    Object.values(s.stores).forEach(st=>{ if(st.perf===undefined) st.perf=null; });
+    if(!s.regions){ s.regions=REGION_SEED.map(r=>({...r})); }
+    return s;
+  }
+
+  async function loadState(){
+    try{
+      const res=await storageAdapter.get(STORAGE_KEY);
+      if(res && res.value){
+        state=migrateIfNeeded(JSON.parse(res.value));
+        saveIndicator.textContent='已載入先前的排列';
+        return;
+      }
+    }catch(e){ /* not found */ }
+    state=buildInitialState();
+    saveIndicator.textContent='已載入原始資料';
+  }
+
+  // ============ Custom modal (native confirm/prompt are blocked in sandboxed artifacts) ============
+  function customConfirm(message){
+    return new Promise(resolve=>{
+      const overlay=document.createElement('div');
+      overlay.className='modal-overlay';
+      overlay.innerHTML=`
+        <div class="modal-box">
+          <p>${message}</p>
+          <div class="modal-actions">
+            <button class="btn" data-act="cancel">取消</button>
+            <button class="btn primary" data-act="ok">確定</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      function done(val){ overlay.remove(); resolve(val); }
+      overlay.addEventListener('click', e=>{
+        if(e.target===overlay) done(false);
+        const act=e.target.closest('[data-act]');
+        if(act) done(act.dataset.act==='ok');
+      });
+    });
+  }
+  function customPromptMulti(title, fields){
+    // fields: [{key,label,value}]
+    return new Promise(resolve=>{
+      const overlay=document.createElement('div');
+      overlay.className='modal-overlay';
+      overlay.innerHTML=`
+        <div class="modal-box">
+          <h4>${title}</h4>
+          ${fields.map(f=>`
+            <div class="modal-field">
+              <label>${f.label}</label>
+              <input type="text" data-key="${f.key}" value="${(f.value||'').toString().replace(/"/g,'&quot;')}" />
+            </div>`).join('')}
+          <div class="modal-actions">
+            <button class="btn" data-act="cancel">取消</button>
+            <button class="btn primary" data-act="ok">儲存</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const firstInput=overlay.querySelector('input');
+      if(firstInput) setTimeout(()=>firstInput.focus(), 0);
+      function done(val){ overlay.remove(); resolve(val); }
+      overlay.addEventListener('click', e=>{
+        if(e.target===overlay) done(null);
+        const act=e.target.closest('[data-act]');
+        if(act){
+          if(act.dataset.act==='cancel'){ done(null); return; }
+          const result={};
+          overlay.querySelectorAll('input[data-key]').forEach(inp=>{ result[inp.dataset.key]=inp.value; });
+          done(result);
+        }
+      });
+      overlay.addEventListener('keydown', e=>{
+        if(e.key==='Enter'){ overlay.querySelector('[data-act="ok"]').click(); }
+        if(e.key==='Escape'){ done(null); }
+      });
+    });
+  }
+
+  async function resetState(){
+    const ok=await customConfirm('確定要重置回原始資料嗎？目前的動線調整將會遺失。');
+    if(!ok) return;
+    state=buildInitialState();
+    render();
+    scheduleSave();
+  }
+
+  // ============ Helpers ============
+  function regionOf(id){ return allColumns().find(r=>r.id===id); }
+  function groupsInColumn(colId){ return state.groups.filter(g=>g.columnId===colId); }
+  function looseInstallersInColumn(colId){
+    return Object.entries(state.installers)
+      .filter(([id,inst])=> inst.location.type==='column' && inst.location.columnId===colId)
+      .map(([id])=>id);
+  }
+  function vacantGroups(){ return state.groups.filter(g=> g.installerIds.length===0 && g.storeIds.length>0); }
+  function totalStores(){ return Object.keys(state.stores).length; }
+  function totalInstallers(){ return Object.keys(state.installers).length; }
+  function totalVacantStores(){ return vacantGroups().reduce((n,g)=>n+g.storeIds.length,0); }
+  function groupLabel(g){
+    if(g.label) return g.label;
+    const names=g.storeIds.map(sid=>state.stores[sid]?.name).filter(Boolean);
+    if(names.length===0) return '（空群組）';
+    if(names.length===1) return names[0];
+    return names[0]+' 等'+names.length+'間門市';
+  }
+  function findStoreIdByCode(code){
+    return Object.entries(state.stores).find(([id,s])=>s.code===code)?.[0] || null;
+  }
+  function findGroupContainingStore(storeId){
+    return state.groups.find(g=>g.storeIds.includes(storeId));
+  }
+
+  // ============ Mutations ============
+  function removeGroupIfEmpty(gid){
+    const g=state.groups.find(x=>x.id===gid);
+    if(g && g.storeIds.length===0 && g.installerIds.length===0 && !g.label){
+      state.groups=state.groups.filter(x=>x.id!==gid);
+    }
+  }
+  function mergeGroup(sourceId, targetId){
+    if(sourceId===targetId) return;
+    const src=state.groups.find(g=>g.id===sourceId);
+    const tgt=state.groups.find(g=>g.id===targetId);
+    if(!src||!tgt) return;
+    tgt.storeIds=[...tgt.storeIds, ...src.storeIds];
+    tgt.installerIds=[...tgt.installerIds, ...src.installerIds];
+    src.installerIds.forEach(iid=>{ if(state.installers[iid]) state.installers[iid].location={type:'group',groupId:tgt.id}; });
+    state.groups=state.groups.filter(g=>g.id!==sourceId);
+  }
+  // Moves a group to a column and/or a specific position, without merging it into another card.
+  // refGroupId=null means "append to end of that column". Otherwise insert immediately before/after refGroupId.
+  function insertGroupRelative(gid, colId, refGroupId, after){
+    const idx=state.groups.findIndex(g=>g.id===gid);
+    if(idx===-1) return;
+    const [g]=state.groups.splice(idx,1);
+    g.columnId=colId;
+    if(refGroupId){
+      let refIdx=state.groups.findIndex(x=>x.id===refGroupId);
+      if(refIdx===-1){ state.groups.push(g); return; }
+      if(after) refIdx+=1;
+      state.groups.splice(refIdx,0,g);
+    } else {
+      state.groups.push(g);
+    }
+  }
+  function extractStoreToNewGroup(storeId, fromGroupId, colId){
+    const from=state.groups.find(g=>g.id===fromGroupId);
+    if(!from) return;
+    from.storeIds=from.storeIds.filter(s=>s!==storeId);
+    const gid='g'+Date.now()+Math.floor(Math.random()*1000);
+    state.groups.push({id:gid, columnId:colId, storeIds:[storeId], installerIds:[], label:null, colorIdx:0});
+    removeGroupIfEmpty(from.id);
+  }
+  function moveStoreIntoGroup(storeId, fromGroupId, targetGroupId){
+    if(fromGroupId===targetGroupId) return;
+    const from=state.groups.find(g=>g.id===fromGroupId);
+    const tgt=state.groups.find(g=>g.id===targetGroupId);
+    if(!from||!tgt) return;
+    from.storeIds=from.storeIds.filter(s=>s!==storeId);
+    tgt.storeIds.push(storeId);
+    removeGroupIfEmpty(from.id);
+  }
+  function assignInstallerToGroup(instId, groupId){
+    const g=state.groups.find(x=>x.id===groupId);
+    if(!g) return;
+    if(g.installerIds.includes(instId)) return;
+    // remove from wherever it currently is
+    const oldGroup=state.groups.find(x=>x.installerIds.includes(instId));
+    if(oldGroup) oldGroup.installerIds=oldGroup.installerIds.filter(i=>i!==instId);
+    g.installerIds.push(instId);
+    state.installers[instId].location={type:'group', groupId:g.id};
+  }
+  function unassignInstaller(instId, colId){
+    const inst=state.installers[instId];
+    if(!inst) return;
+    const g=state.groups.find(x=>x.installerIds.includes(instId));
+    let targetCol=colId;
+    if(g){ g.installerIds=g.installerIds.filter(i=>i!==instId); targetCol=targetCol||g.columnId; }
+    inst.location={type:'column', columnId: targetCol||'stage'};
+  }
+  function moveInstallerToColumn(instId, colId){
+    const inst=state.installers[instId];
+    if(!inst) return;
+    const g=state.groups.find(x=>x.installerIds.includes(instId));
+    if(g) g.installerIds=g.installerIds.filter(i=>i!==instId);
+    inst.location={type:'column', columnId:colId};
+  }
+  function removeStoreFromGroupByClick(storeId, groupId){
+    const g=state.groups.find(x=>x.id===groupId);
+    if(!g || g.storeIds.length<=1) return;
+    g.storeIds=g.storeIds.filter(s=>s!==storeId);
+    const gid='g'+Date.now()+Math.floor(Math.random()*1000);
+    state.groups.push({id:gid, columnId:g.columnId, storeIds:[storeId], installerIds:[], label:null, colorIdx:0});
+  }
+  function cycleGroupColor(gid){
+    const g=state.groups.find(x=>x.id===gid);
+    if(!g) return;
+    g.colorIdx=((g.colorIdx||0)+1)%GROUP_PALETTE.length;
+  }
+  async function deleteGroup(gid){
+    const g=state.groups.find(x=>x.id===gid);
+    if(!g) return;
+    if(g.storeIds.length>0 || g.installerIds.length>0){
+      const ok=await customConfirm(`「${groupLabel(g)}」裡面還有 ${g.storeIds.length} 間門市、${g.installerIds.length} 位安裝師。\n刪除這個群組會把它們移到「空位區／暫存區」，不會刪掉門市或安裝師本身。確定要刪除嗎？`);
+      if(!ok) return;
+      g.storeIds.forEach(sid=>{
+        const nid='g'+Date.now()+Math.floor(Math.random()*10000);
+        state.groups.push({id:nid, columnId:'stage', storeIds:[sid], installerIds:[], label:null, colorIdx:0});
+      });
+      g.installerIds.forEach(iid=>{
+        if(state.installers[iid]) state.installers[iid].location={type:'column', columnId:'stage'};
+      });
+    } else {
+      const ok=await customConfirm(`確定要刪除「${groupLabel(g)}」這個空群組嗎？`);
+      if(!ok) return;
+    }
+    state.groups=state.groups.filter(x=>x.id!==gid);
+    render();
+    scheduleSave();
+  }
+  async function addManualPerf(storeId){
+    const s=state.stores[storeId];
+    if(!s) return;
+    const result=await customPromptMulti('編輯業績', [
+      {key:'current', label:'當月業績', value:s.perf?.current||''},
+      {key:'cumulative', label:'累計業績（例：1-6月業績）', value:s.perf?.cumulative||''},
+      {key:'avg', label:'平均月業績', value:s.perf?.avg||''}
+    ]);
+    if(!result) return;
+    s.perf={current:result.current, cumulative:result.cumulative, avg:result.avg};
+    render();
+    scheduleSave();
+  }
+
+  // ============ Rendering: board ============
+  const board=document.getElementById('board');
+  const statsEl=document.getElementById('stats');
+  const vacancyBanner=document.getElementById('vacancyBanner');
+  let searchTerm='';
+
+  function matchesSearch(g){
+    if(!searchTerm) return true;
+    const t=searchTerm.toLowerCase();
+    if(groupLabel(g).toLowerCase().includes(t)) return true;
+    for(const sid of g.storeIds){
+      const s=state.stores[sid];
+      if(s && (s.code.toLowerCase().includes(t) || s.name.toLowerCase().includes(t))) return true;
+    }
+    for(const iid of g.installerIds){
+      const inst=state.installers[iid];
+      if(inst && inst.name.toLowerCase().includes(t)) return true;
+    }
+    return false;
+  }
+
+  function render(){
+    const vacant=totalVacantStores();
+    statsEl.innerHTML=`
+      <div class="stat">門市總數 <b>${totalStores()}</b></div>
+      <div class="stat">安裝師總數 <b>${totalInstallers()}</b></div>
+      <div class="stat ${vacant>0?'warn':''}">尚缺安裝師的門市 <b>${vacant}</b></div>
+      <div class="stat">動線 / 群組數 <b>${state.groups.filter(g=>g.storeIds.length>0||g.label).length}</b></div>
+    `;
+
+    const vg=vacantGroups();
+    if(vg.length){
+      const byRegion={};
+      vg.forEach(g=>{ (byRegion[g.columnId]=byRegion[g.columnId]||[]).push(g); });
+      const sections=allColumns().filter(r=>byRegion[r.id]&&byRegion[r.id].length).map(r=>{
+        const chips=byRegion[r.id].map(g=>`<span class="vacancy-chip" data-goto="${g.id}">${groupLabel(g)}</span>`).join('');
+        return `<div class="vacancy-region"><span class="vacancy-region-name" style="color:${r.color}">${r.name}（${byRegion[r.id].length}）</span> ${chips}</div>`;
+      }).join('');
+      vacancyBanner.innerHTML = `<b>缺口清單：</b> 以下 ${vg.length} 個動線／門市尚未配安裝師（點擊可跳到該卡片）` + sections;
+    } else {
+      vacancyBanner.innerHTML = `<b>缺口清單：</b> 目前所有動線都已配置安裝師 🎉`;
+    }
+
+    board.innerHTML='';
+    allColumns().forEach(region=>{
+      const col=document.createElement('div');
+      col.className='column'+(region.id==='stage'?' staging':'');
+      col.dataset.colId=region.id;
+
+      const groupsHere=groupsInColumn(region.id);
+      const looseIds=looseInstallersInColumn(region.id);
+      const withInstaller=groupsHere.filter(g=>g.installerIds.length>0).length;
+      const instCount=groupsHere.reduce((n,g)=>n+g.installerIds.length,0);
+
+      const storeCount=groupsHere.reduce((n,g)=>n+g.storeIds.length,0);
+      col.innerHTML=`
+        <div class="col-banner" style="background:${region.color}">${region.name}</div>
+        <div class="col-head">
+          <div class="col-pills">
+            ${region.id==='stage'
+              ? `<span class="col-pill">拖放暫存／待補位</span>`
+              : `<span class="col-pill">${storeCount} 間門市</span><span class="col-pill">${withInstaller} 條動線</span><span class="col-pill">${instCount} 位安裝師</span>`}
+          </div>
+        </div>
+        <div class="col-body" data-col-body="${region.id}"></div>
+      `;
+      board.appendChild(col);
+
+      const body=col.querySelector('.col-body');
+      let anyVisible=false;
+
+      groupsHere.forEach(g=>{
+        const visible=matchesSearch(g);
+        if(visible) anyVisible=true;
+        const card=renderGroup(g);
+        if(!visible) card.classList.add('dim');
+        body.appendChild(card);
+      });
+
+      looseIds.forEach(instId=>{
+        anyVisible=true;
+        body.appendChild(renderLooseInstaller(instId));
+      });
+
+      if(!anyVisible){
+        const hint=document.createElement('div');
+        hint.className='col-empty-hint';
+        hint.textContent= region.id==='stage' ? '（空的）拖曳門市或安裝師到這裡暫放' : '（無符合項目）';
+        body.appendChild(hint);
+      }
+    });
+
+    attachDnD();
+  }
+
+  function renderGroup(g){
+    const pal=GROUP_PALETTE[g.colorIdx||0];
+    const card=document.createElement('div');
+    card.className='group';
+    card.dataset.groupId=g.id;
+    card.style.background='#fff';
+    card.style.borderLeftColor=pal.tag;
+
+    const top=document.createElement('div');
+    top.className='group-top';
+    top.innerHTML=`
+      <span class="handle" data-drag="group" data-id="${g.id}" title="拖曳搬動 / 合併">⠿</span>
+      <span class="colorswatch" data-cycle-color="${g.id}" style="background:${pal.tag}" title="點一下換顏色（灰→玫瑰→薰衣草→藍灰→知更藍→海洋→海霧綠→梅子）"></span>
+      <input class="glabel" value="${groupLabel(g)}" data-rename="${g.id}" />
+      <span class="gcount">${g.storeIds.length>1? g.storeIds.length+'間門市':''}</span>
+      <span class="group-del" data-delete-group="${g.id}" title="刪除這個群組">🗑</span>
+    `;
+    card.appendChild(top);
+
+    g.storeIds.forEach(sid=>{
+      const s=state.stores[sid];
+      if(!s) return;
+      const line=document.createElement('div');
+      line.className='store-line';
+      line.dataset.storeId=sid;
+      line.dataset.parentGroup=g.id;
+      line.innerHTML=`
+        <span class="store-code">${s.code}</span>
+        <span class="store-name">${s.name}</span>
+        ${!s.perf? `<span class="perf-add" data-add-perf="${sid}">＋業績</span>`:''}
+        ${g.storeIds.length>1?`<span class="store-x" data-split-store="${sid}" data-from-group="${g.id}" title="拆出獨立">✕</span>`:''}
+        ${s.perf? `<span class="perf-line" data-edit-perf="${sid}">當月 ${s.perf.current||'-'}／累計 ${s.perf.cumulative||'-'}／月均 ${s.perf.avg||'-'}</span>`:''}
+      `;
+      card.appendChild(line);
+    });
+
+    const slot=document.createElement('div');
+    slot.className='installer-slot';
+    slot.dataset.slotForGroup=g.id;
+    if(g.installerIds.length){
+      g.installerIds.forEach(instId=>{
+        const inst=state.installers[instId];
+        if(!inst) return;
+        const chip=document.createElement('div');
+        chip.className='installer-chip';
+        chip.innerHTML=`
+          <span class="handle" data-drag="installer" data-id="${instId}" title="拖曳搬動">⠿</span>
+          <span class="iname">${inst.name}</span>
+          <span class="ititle">${inst.title}</span>
+          <span class="itenure">${inst.tenure}</span>
+          <span class="ix" data-unassign="${instId}" title="移除安裝師">✕</span>
+        `;
+        slot.appendChild(chip);
+      });
+      const addMore=document.createElement('div');
+      addMore.className='add-installer-btn';
+      addMore.dataset.slotHintFor=g.id;
+      addMore.textContent='拖曳安裝師到這裡可再加一位';
+      slot.appendChild(addMore);
+    } else {
+      slot.innerHTML=`<div class="installer-empty">拖曳安裝師到這裡指派（可多位）</div>`;
+    }
+    card.appendChild(slot);
+    return card;
+  }
+
+  function renderLooseInstaller(instId){
+    const inst=state.installers[instId];
+    const el=document.createElement('div');
+    el.className='loose-installer';
+    el.innerHTML=`
+      <span class="handle" data-drag="installer" data-id="${instId}" title="拖曳搬動">⠿</span>
+      <span class="iname">${inst.name}</span>
+      <span class="ititle">${inst.title}</span>
+      <span class="itenure">${inst.tenure}</span>
+      <span class="loose-tag">待指派</span>
+    `;
+    return el;
+  }
+
+  // ============ Non-drag events ============
+  document.getElementById('search').addEventListener('input', e=>{ searchTerm=e.target.value.trim(); render(); });
+  document.getElementById('resetBtn').addEventListener('click', resetState);
+  document.getElementById('expandVacancy').addEventListener('click', ()=> vacancyBanner.classList.toggle('show'));
+
+  board.addEventListener('click', e=>{
+    const splitBtn=e.target.closest('[data-split-store]');
+    if(splitBtn){ removeStoreFromGroupByClick(splitBtn.dataset.splitStore, splitBtn.dataset.fromGroup); render(); scheduleSave(); return; }
+
+    const unassignBtn=e.target.closest('[data-unassign]');
+    if(unassignBtn){
+      const instId=unassignBtn.dataset.unassign;
+      const g=state.groups.find(x=>x.installerIds.includes(instId));
+      unassignInstaller(instId, g?g.columnId:'stage');
+      render(); scheduleSave(); return;
+    }
+    const colorDot=e.target.closest('[data-cycle-color]');
+    if(colorDot){ cycleGroupColor(colorDot.dataset.cycleColor); render(); scheduleSave(); return; }
+
+    const delBtn=e.target.closest('[data-delete-group]');
+    if(delBtn){ deleteGroup(delBtn.dataset.deleteGroup); return; }
+
+    const addPerf=e.target.closest('[data-add-perf]');
+    if(addPerf){ addManualPerf(addPerf.dataset.addPerf); return; }
+    const editPerf=e.target.closest('[data-edit-perf]');
+    if(editPerf){ addManualPerf(editPerf.dataset.editPerf); return; }
+  });
+
+  vacancyBanner.addEventListener('click', e=>{
+    const chip=e.target.closest('[data-goto]');
+    if(!chip) return;
+    const cardEl=board.querySelector(`.group[data-group-id="${chip.dataset.goto}"]`);
+    if(cardEl){
+      cardEl.scrollIntoView({behavior:'smooth', block:'center', inline:'center'});
+      cardEl.style.boxShadow='0 0 0 2px var(--warn)';
+      setTimeout(()=>{ cardEl.style.boxShadow=''; }, 1200);
+    }
+  });
+
+  board.addEventListener('change', e=>{
+    const renameId=e.target.closest('[data-rename]');
+    if(renameId){
+      const g=state.groups.find(x=>x.id===renameId.dataset.rename);
+      if(g){ g.label = renameId.value.trim() || null; scheduleSave(); }
+    }
+  });
+  board.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target.matches('[data-rename]')) e.target.blur(); });
+
+  // ============ Drag & drop ============
+  function attachDnD(){
+    board.querySelectorAll('[data-drag="group"]').forEach(handle=>{
+      handle.onpointerdown=(e)=>startDrag(e,'group',handle.dataset.id, handle.closest('.group'));
+    });
+    board.querySelectorAll('[data-drag="installer"]').forEach(handle=>{
+      handle.onpointerdown=(e)=>{ startDrag(e,'installer',handle.dataset.id, handle.closest('.installer-chip, .loose-installer')); };
+    });
+    board.querySelectorAll('.store-line').forEach(line=>{
+      line.onpointerdown=(e)=>{
+        if(e.target.closest('[data-split-store],[data-add-perf],[data-edit-perf]')) return;
+        startDrag(e,'store', line.dataset.storeId, line, line.dataset.parentGroup);
+      };
+    });
+  }
+
+  function startDrag(e, type, id, sourceEl, extra){
+    e.preventDefault();
+    const startX=e.clientX, startY=e.clientY;
+    let started=false, ghost=null;
+
+    function onMove(ev){
+      const dx=ev.clientX-startX, dy=ev.clientY-startY;
+      if(!started){
+        if(Math.abs(dx)<6 && Math.abs(dy)<6) return;
+        started=true;
+        ghost=document.createElement('div');
+        ghost.className='drag-ghost';
+        ghost.style.width=sourceEl.offsetWidth+'px';
+        ghost.innerHTML=sourceEl.outerHTML;
+        document.body.appendChild(ghost);
+        sourceEl.classList.add('dragging');
+      }
+      if(ghost){ ghost.style.left=ev.clientX+'px'; ghost.style.top=ev.clientY+'px'; }
+      clearHoverStates();
+      highlightTarget(type, ev, id, extra);
+    }
+    function onUp(ev){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if(ghost) ghost.remove();
+      sourceEl.classList.remove('dragging');
+      clearHoverStates();
+      if(!started) return;
+      handleDrop(type, id, extra, ev);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  function clearHoverStates(){ board.querySelectorAll('.drop-hover,.drop-before,.drop-after,.drop-merge').forEach(el=>el.classList.remove('drop-hover','drop-before','drop-after','drop-merge')); }
+
+  // For a group drag: top/bottom edge of a target card = reorder (insert before/after); middle of the card = merge into it.
+  function groupHoverInfo(ev, draggedId){
+    const under=document.elementFromPoint(ev.clientX, ev.clientY);
+    if(!under) return null;
+    const card=under.closest('.group');
+    if(card && card.dataset.groupId!==draggedId){
+      const rect=card.getBoundingClientRect();
+      const relY=(ev.clientY-rect.top)/rect.height;
+      let mode;
+      if(relY<0.28) mode='before';
+      else if(relY>0.72) mode='after';
+      else mode='merge';
+      return {refGroupId:card.dataset.groupId, mode, colId:card.closest('.col-body')?.dataset.colBody, cardEl:card};
+    }
+    const body=under.closest('.col-body');
+    if(body) return {refGroupId:null, mode:'append', colId:body.dataset.colBody, cardEl:null};
+    return null;
+  }
+
+  function highlightTarget(type, ev, id, extra){
+    const under=document.elementFromPoint(ev.clientX, ev.clientY);
+    if(!under) return;
+    if(type==='group'){
+      const info=groupHoverInfo(ev, id);
+      if(info && info.cardEl){
+        const cls = info.mode==='merge' ? 'drop-merge' : (info.mode==='after' ? 'drop-after' : 'drop-before');
+        info.cardEl.classList.add(cls);
+        return;
+      }
+      if(info){ const b=board.querySelector(`[data-col-body="${info.colId}"]`); if(b) b.classList.add('drop-hover'); }
+    } else if(type==='installer'){
+      const slot=under.closest('.installer-slot');
+      if(slot){ slot.classList.add('drop-hover'); return; }
+      const b=under.closest('.col-body'); if(b) b.classList.add('drop-hover');
+    } else if(type==='store'){
+      const t=under.closest('.group');
+      if(t && t.dataset.groupId!==extra){ t.classList.add('drop-hover'); return; }
+      const b=under.closest('.col-body'); if(b) b.classList.add('drop-hover');
+    }
+  }
+
+  function handleDrop(type, id, extra, ev){
+    const under=document.elementFromPoint(ev.clientX, ev.clientY);
+    if(!under) return;
+    if(type==='group'){
+      const info=groupHoverInfo(ev, id);
+      if(info){
+        if(info.mode==='merge') mergeGroup(id, info.refGroupId);
+        else if(info.mode==='before') insertGroupRelative(id, info.colId, info.refGroupId, false);
+        else if(info.mode==='after') insertGroupRelative(id, info.colId, info.refGroupId, true);
+        else insertGroupRelative(id, info.colId, null, true);
+      }
+    } else if(type==='installer'){
+      const slot=under.closest('.installer-slot');
+      if(slot) assignInstallerToGroup(id, slot.dataset.slotForGroup);
+      else { const b=under.closest('.col-body'); if(b) moveInstallerToColumn(id, b.dataset.colBody); }
+    } else if(type==='store'){
+      const t=under.closest('.group');
+      if(t && t.dataset.groupId!==extra) moveStoreIntoGroup(id, extra, t.dataset.groupId);
+      else { const b=under.closest('.col-body'); if(b) extractStoreToNewGroup(id, extra, b.dataset.colBody); }
+    }
+    render();
+    scheduleSave();
+  }
+
+  // ============ Nav tabs ============
+  const navtabs=document.querySelectorAll('.navtab');
+  const viewBoard=document.getElementById('view-board');
+  const viewOverview=document.getElementById('view-overview');
+  const viewPaste=document.getElementById('view-paste');
+  navtabs.forEach(t=>{
+    t.addEventListener('click', ()=>{
+      navtabs.forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      viewBoard.style.display = t.dataset.tab==='board' ? 'flex' : 'none';
+      viewOverview.style.display = t.dataset.tab==='overview' ? 'block' : 'none';
+      viewPaste.style.display = t.dataset.tab==='paste' ? 'flex' : 'none';
+      if(t.dataset.tab==='overview') renderOverview();
+    });
+  });
+
+  // ============ Overview / print view ============
+  function hexToRgba(hex, alpha){
+    hex = hex.replace('#','');
+    const r=parseInt(hex.substring(0,2),16), g=parseInt(hex.substring(2,4),16), b=parseInt(hex.substring(4,6),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function renderRouteNode(g, region){
+    const vacant = g.installerIds.length===0;
+    const instText = g.installerIds.length
+      ? g.installerIds.map(iid=>state.installers[iid]?.name).filter(Boolean).join('、')
+      : '缺';
+    const borderStyle = vacant ? '' : `style="border-color:${hexToRgba(region.color,0.55)}"`;
+    if(g.storeIds.length<=1){
+      const s = g.storeIds.length ? state.stores[g.storeIds[0]] : null;
+      const perf = (s && s.perf && s.perf.avg) ? `<span class="org-perf">月均 ${s.perf.avg}</span>` : '';
+      return `
+        <li>
+          <div class="org-node ${vacant?'org-vacant':''}" ${borderStyle}>
+            <span class="org-store">${s?s.name:groupLabel(g)}</span>
+            ${s?`<span class="org-code">${s.code}</span>`:''}
+            ${perf}
+            <span class="org-inst">${instText}</span>
+          </div>
+        </li>`;
+    }
+    const leaves = g.storeIds.map(sid=>{
+      const s=state.stores[sid];
+      if(!s) return '';
+      const perf = (s.perf && s.perf.avg) ? `<span class="org-perf">月均 ${s.perf.avg}</span>` : '';
+      return `<li><div class="org-node" style="border-color:${hexToRgba(region.color,0.4)}"><span class="org-store">${s.name}</span><span class="org-code">${s.code}</span>${perf}</div></li>`;
+    }).join('');
+    return `
+      <li>
+        <div class="org-node ${vacant?'org-vacant':''}" ${borderStyle}>
+          <span class="org-route-label">${groupLabel(g)}</span>
+          <span class="org-inst">${instText}</span>
+        </div>
+        <ul>${leaves}</ul>
+      </li>`;
+  }
+
+  function renderOverview(){
+    const sections = allColumns().map(region=>{
+      const groups = groupsInColumn(region.id).filter(g=>g.storeIds.length>0);
+      const looseIds = looseInstallersInColumn(region.id);
+      if(groups.length===0 && looseIds.length===0) return '';
+      const storeCount = groups.reduce((n,g)=>n+g.storeIds.length,0);
+      const withInstaller = groups.filter(g=>g.installerIds.length>0).length;
+      const instCount = groups.reduce((n,g)=>n+g.installerIds.length,0);
+
+      const looseHtml = looseIds.length
+        ? `<div class="ov-loose">待指派安裝師：${looseIds.map(iid=>state.installers[iid]?.name).filter(Boolean).join('、')}</div>`
+        : '';
+
+      const treeHtml = groups.length ? `
+        <div class="ov-scroll" style="--tree-line:${region.color}">
+          <ul class="org-tree">
+            <li>
+              <div class="org-node org-root" style="background:${hexToRgba(region.color,0.18)};border:1.5px solid ${region.color};color:var(--text);">${region.name}</div>
+              <ul>${groups.map(g=>renderRouteNode(g,region)).join('')}</ul>
+            </li>
+          </ul>
+        </div>` : '';
+
+      return `
+        <div class="ov-region">
+          <div class="ov-region-title">
+            <h2>${region.name}</h2>
+            <span class="ov-region-stats">${storeCount} 間門市・${withInstaller}/${groups.length} 條動線已配置安裝師・共 ${instCount} 位安裝師</span>
+          </div>
+          ${looseHtml}
+          ${treeHtml}
+        </div>`;
+    }).join('');
+
+    viewOverview.innerHTML = `
+      <div class="ov-toolbar"><button class="btn" id="ovPrintBtn">🖨️ 列印／存成 PDF</button></div>
+      ${sections || '<p style="color:var(--muted);text-align:center;">目前還沒有任何門市資料。</p>'}
+    `;
+    const printBtn=document.getElementById('ovPrintBtn');
+    if(printBtn) printBtn.onclick=()=>window.print();
+  }
+
+  // ============ Paste-import view ============
+  function buildPasteView(){
+    viewPaste.innerHTML=`
+      <div class="paste-card">
+        <h3>① 區域編輯</h3>
+        <p>新增或刪除看板上的分區欄位。每個區域列後面的「＋門市」可以直接補一間門市進去；如果要一次貼很多間門市，用下面的「②門市資料」整段貼上會更快。</p>
+        <div class="region-list" id="regionList"></div>
+        <div class="paste-actions" style="margin-top:12px;">
+          <input class="search" id="newRegionName" placeholder="輸入新區域名稱，例如：海外區" style="max-width:220px;" />
+          <button class="btn primary" id="btnAddRegion">新增區域</button>
+        </div>
+        <div class="paste-result" id="resultRegion"></div>
+      </div>
+
+      <div class="paste-card">
+        <h3>② 門市資料</h3>
+        <p>從 Google 試算表 / Excel 複製整段（含多欄多列）直接貼上即可。每列 2 欄：<b>區域名稱、門市代號＋名稱（相連不用分開）</b>，例如「016建國門市」。區域名稱需與下列其中一個完全相同：${state.regions.map(r=>r.name).join('、')}。若門市代號已存在，會更新名稱；不存在則新增一張獨立卡片到該區。（如果代號和名稱本來就分開兩欄貼上也可以，一樣看得懂。）</p>
+        <div class="paste-format">大北A區	016建國門市
+大北A區	018永和門市
+大北B區	020基隆門市</div>
+        <textarea class="paste-textarea" id="pasteStores" placeholder="在這裡貼上（Tab分隔）..."></textarea>
+        <div class="paste-actions"><button class="btn primary" id="btnPasteStores">解析並更新門市資料</button></div>
+        <div class="paste-result" id="resultStores"></div>
+      </div>
+
+      <div class="paste-card">
+        <h3>③ 安裝師資料（依區域）</h3>
+        <p>每列 4 欄：<b>區域名稱、安裝師姓名、職稱、年資</b>。區域名稱需與現有區域完全相同。因為這種名單沒有指定門市，系統會把每位安裝師先放進「該區域最下面的待指派區」，之後你再自己拖到對應的門市/動線卡片上就好。職稱可填「安裝師 / 安裝師組長 / 助理安裝師」。同名的人再貼一次只會更新職稱／年資，不會變成兩個人。</p>
+        <div class="paste-format">高屏區	楊宗岳	安裝師組長	24年334天
+大北A區	方琮右	安裝師組長	9年67天
+雲嘉南區	王柏文	助理安裝師	7年82天</div>
+        <textarea class="paste-textarea" id="pasteInstallers" placeholder="在這裡貼上（Tab分隔）..."></textarea>
+        <div class="paste-actions"><button class="btn primary" id="btnPasteInstallers">解析並更新安裝師資料</button></div>
+        <div class="paste-result" id="resultInstallers"></div>
+      </div>
+
+      <div class="paste-card">
+        <h3>④ 業績資料</h3>
+        <p>直接照你原本的月報表貼上就好，每列 3 欄：<b>月份（或「年度」）、門市名稱（含代號）、金額</b>。同一間門市會有多列（1月～當月＋一列年度小計），系統會自動依代號歸類，並算出：<b>當月業績</b>＝最後一個月份的金額、<b>累計業績</b>＝年度小計（沒有的話自動加總各月）、<b>平均月業績</b>＝排除最後一個月（視為還沒滿一整月）後，用剩下的完整月份加總除以月數，例如貼了 1～7月，會自動用「1-6月合計 ÷ 6」當平均，7月只會顯示在當月業績。重複或格式不完整的列會自動略過。</p>
+        <div class="paste-format">1月		006嘉義門市	816,954
+2月		006嘉義門市	370,632
+...
+年度		006嘉義門市	3,429,843
+1月		012金馬門市	857,313
+...</div>
+        <textarea class="paste-textarea" id="pastePerf" placeholder="在這裡貼上整段月報表..."></textarea>
+        <div class="paste-actions"><button class="btn primary" id="btnPastePerf">解析並更新業績資料</button></div>
+        <div class="paste-result" id="resultPerf"></div>
+      </div>
+
+      <div class="paste-card">
+        <h3>⑤ 備份／還原</h3>
+        <p>把目前所有資料（區域、門市、安裝師、業績、動線分組）匯出成一個檔案，自己保管、換電腦用，或放到自己的網域上時可以先匯出、再匯入到新的一份裡繼續使用。還原會直接覆蓋目前畫面上的資料，請先確認再匯入。</p>
+        <div class="paste-actions">
+          <button class="btn primary" id="btnExportBackup">⬇️ 匯出目前資料</button>
+          <input type="file" id="importBackupFile" accept="application/json" />
+        </div>
+        <div class="paste-result" id="resultBackup"></div>
+      </div>
+    `;
+
+    renderRegionList();
+    document.getElementById('regionList').addEventListener('click', regionListClickHandler);
+    document.getElementById('btnAddRegion').onclick=()=>doAddRegion();
+    document.getElementById('newRegionName').addEventListener('keydown', e=>{ if(e.key==='Enter') doAddRegion(); });
+    document.getElementById('btnPasteStores').onclick=()=>doPasteStores();
+    document.getElementById('btnPasteInstallers').onclick=()=>doPasteInstallers();
+    document.getElementById('btnPastePerf').onclick=()=>doPastePerf();
+    document.getElementById('btnExportBackup').onclick=()=>doExportBackup();
+    document.getElementById('importBackupFile').addEventListener('change', e=>{
+      const f=e.target.files[0];
+      if(f) doImportBackupFile(f);
+    });
+  }
+
+  function renderRegionList(){
+    const el=document.getElementById('regionList');
+    if(!el) return;
+    el.innerHTML = state.regions.map(r=>`
+      <div class="region-row" data-region-id="${r.id}">
+        <span class="region-dot" style="background:${r.color}"></span>
+        <span class="region-row-name">${r.name}</span>
+        <span class="region-row-actions">
+          <span class="region-link" data-toggle-addstore="${r.id}">＋門市</span>
+          <span class="region-del" data-delete-region="${r.id}" title="刪除這個區域">🗑</span>
+        </span>
+      </div>
+      <div class="region-addstore-form" id="addstore-${r.id}" style="display:none;">
+        <input class="search" data-store-code="${r.id}" placeholder="代號 例如016" style="max-width:90px;" />
+        <input class="search" data-store-name="${r.id}" placeholder="門市名稱 例如建國門市" style="max-width:160px;" />
+        <button class="btn primary" data-submit-addstore="${r.id}">新增門市</button>
+      </div>
+    `).join('') + `
+      <div class="region-row">
+        <span class="region-dot" style="background:${STAGE_DEF.color}"></span>
+        <span class="region-row-name" style="color:var(--muted);">${STAGE_DEF.name}（固定保留，無法刪除）</span>
+      </div>
+    `;
+  }
+
+  function regionListClickHandler(e){
+    const toggle=e.target.closest('[data-toggle-addstore]');
+    if(toggle){
+      const form=document.getElementById('addstore-'+toggle.dataset.toggleAddstore);
+      if(form) form.style.display = (form.style.display==='none'||!form.style.display) ? 'flex' : 'none';
+      return;
+    }
+    const submit=e.target.closest('[data-submit-addstore]');
+    if(submit){
+      const rid=submit.dataset.submitAddstore;
+      const codeInput=document.querySelector(`[data-store-code="${rid}"]`);
+      const nameInput=document.querySelector(`[data-store-name="${rid}"]`);
+      doAddStoreQuick(rid, codeInput?codeInput.value:'', nameInput?nameInput.value:'');
+      return;
+    }
+    const del=e.target.closest('[data-delete-region]');
+    if(del){ doDeleteRegion(del.dataset.deleteRegion); return; }
+  }
+
+  function doAddStoreQuick(regionId, codeRaw, nameRaw){
+    const code=(codeRaw||'').trim(), name=(nameRaw||'').trim();
+    if(!code||!name){ showResult('resultRegion', false, '請輸入門市代號與門市名稱。'); return; }
+    const region=state.regions.find(r=>r.id===regionId);
+    if(!region) return;
+    const existingId=findStoreIdByCode(code);
+    if(existingId){
+      state.stores[existingId].name=name;
+      showResult('resultRegion', true, `門市代號「${code}」已經存在，已把名稱更新為「${name}」。`);
+    } else {
+      const sid='s'+Date.now()+Math.floor(Math.random()*10000);
+      state.stores[sid]={code, name, perf:null};
+      const gid='g'+Date.now()+Math.floor(Math.random()*10000);
+      state.groups.push({id:gid, columnId:region.id, storeIds:[sid], installerIds:[], label:null, colorIdx:0});
+      showResult('resultRegion', true, `已把「${code} ${name}」加進「${region.name}」了。`);
+    }
+    render();
+    scheduleSave();
+  }
+
+  async function doDeleteRegion(regionId){
+    const region=state.regions.find(r=>r.id===regionId);
+    if(!region) return;
+    const groupsHere=state.groups.filter(g=>g.columnId===regionId);
+    const storeCount=groupsHere.reduce((n,g)=>n+g.storeIds.length,0);
+    const msg = storeCount>0
+      ? `「${region.name}」裡面還有 ${storeCount} 間門市。刪除這個區域會把裡面的門市和動線都移到「空位區／暫存區」，不會刪掉門市或安裝師本身。確定要刪除嗎？`
+      : `確定要刪除「${region.name}」這個區域嗎？`;
+    const ok=await customConfirm(msg);
+    if(!ok) return;
+    groupsHere.forEach(g=>{ g.columnId='stage'; });
+    state.regions=state.regions.filter(r=>r.id!==regionId);
+    renderRegionList();
+    render();
+    scheduleSave();
+  }
+
+  function doAddRegion(){
+    const input=document.getElementById('newRegionName');
+    const name=input.value.trim();
+    if(!name){ showResult('resultRegion', false, '請輸入區域名稱。'); return; }
+    if(state.regions.some(r=>r.name===name)){ showResult('resultRegion', false, `「${name}」已經存在了，不需要重複新增。`); return; }
+    const color=NEW_REGION_COLOR_PALETTE[state.regions.length % NEW_REGION_COLOR_PALETTE.length];
+    const id='r'+Date.now()+Math.floor(Math.random()*10000);
+    state.regions.push({id, name, color});
+    input.value='';
+    renderRegionList();
+    // refresh the store-paste instructions so the new region name is included, and refresh the board
+    const storesHintP=document.querySelector('#pasteStores')?.closest('.paste-card')?.querySelector('p');
+    if(storesHintP){
+      storesHintP.innerHTML=`從 Google 試算表 / Excel 複製整段（含多欄多列）直接貼上即可。每列 2 欄：<b>區域名稱、門市代號＋名稱（相連不用分開）</b>，例如「016建國門市」。區域名稱需與下列其中一個完全相同：${state.regions.map(r=>r.name).join('、')}。若門市代號已存在，會更新名稱；不存在則新增一張獨立卡片到該區。（如果代號和名稱本來就分開兩欄貼上也可以，一樣看得懂。）`;
+    }
+    render();
+    scheduleSave();
+    showResult('resultRegion', true, `已新增區域「${name}」，看板最右邊（空位區之前）已經出現這個新分區，可以直接用②門市資料貼上功能把門市加進去了。`);
+  }
+
+  function splitRows(text){
+    return text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim().length>0)
+      .map(l=> l.includes('\t') ? l.split('\t') : l.split(/\s{2,}/))
+      .map(cols=>cols.map(c=>c.trim()));
+  }
+  function showResult(elId, ok, msg){
+    const el=document.getElementById(elId);
+    el.className='paste-result '+(ok?'ok':'err');
+    el.textContent=msg;
+  }
+
+  function doPasteStores(){
+    const rows=splitRows(document.getElementById('pasteStores').value);
+    if(!rows.length){ showResult('resultStores', false, '沒有偵測到任何資料列。'); return; }
+    let added=0, updated=0; const errs=[];
+    rows.forEach((cols,i)=>{
+      let regionName, code, name;
+      if(cols.length>=3){
+        [regionName, code, name]=cols;
+      } else if(cols.length===2){
+        regionName=cols[0];
+        const m=cols[1].match(/^(\d{2,4})(.+)$/);
+        if(!m){ errs.push(`第${i+1}列「${cols[1]}」看不出代號＋名稱，格式應為代號緊接名稱，例如 016建國門市`); return; }
+        code=m[1]; name=m[2];
+      } else {
+        errs.push(`第${i+1}列欄位不足`); return;
+      }
+      if(!regionName||!code||!name){ errs.push(`第${i+1}列欄位不足`); return; }
+      const region=state.regions.find(r=>r.name===regionName.trim());
+      if(!region||region.id==='stage'){ errs.push(`第${i+1}列「${regionName}」不是有效區域名稱`); return; }
+      const existingId=findStoreIdByCode(code.trim());
+      if(existingId){
+        state.stores[existingId].name=name.trim();
+        updated++;
+      } else {
+        const sid='s'+Date.now()+Math.floor(Math.random()*10000)+i;
+        state.stores[sid]={code:code.trim(), name:name.trim(), perf:null};
+        const gid='g'+Date.now()+Math.floor(Math.random()*10000)+i;
+        state.groups.push({id:gid, columnId:region.id, storeIds:[sid], installerIds:[], label:null, colorIdx:0});
+        added++;
+      }
+    });
+    render(); scheduleSave();
+    showResult('resultStores', errs.length===0, `完成：新增 ${added} 筆、更新 ${updated} 筆。${errs.length? '\n有問題的列：\n'+errs.join('\n') : ''}`);
+  }
+
+  function findInstallerIdByName(name){
+    return Object.entries(state.installers).find(([id,inst])=>inst.name===name)?.[0] || null;
+  }
+
+  function doPasteInstallers(){
+    const rows=splitRows(document.getElementById('pasteInstallers').value);
+    if(!rows.length){ showResult('resultInstallers', false, '沒有偵測到任何資料列。'); return; }
+    let added=0, updated=0; const errs=[];
+    rows.forEach((cols,i)=>{
+      const [regionName, name, title, tenure]=cols;
+      if(!regionName||!name){ errs.push(`第${i+1}列欄位不足`); return; }
+      const region=state.regions.find(r=>r.name===regionName.trim());
+      if(!region){ errs.push(`第${i+1}列「${regionName}」不是有效區域名稱`); return; }
+      const trimmedName=name.trim();
+      const existingId=findInstallerIdByName(trimmedName);
+      if(existingId){
+        state.installers[existingId].title=(title||state.installers[existingId].title).trim();
+        state.installers[existingId].tenure=(tenure||state.installers[existingId].tenure).trim();
+        updated++;
+      } else {
+        const instId='i'+Date.now()+Math.floor(Math.random()*10000)+i;
+        state.installers[instId]={name:trimmedName, title:(title||'安裝師').trim(), tenure:(tenure||'').trim(), location:{type:'column', columnId:region.id}};
+        added++;
+      }
+    });
+    render(); scheduleSave();
+    showResult('resultInstallers', errs.length===0,
+      `完成：新增 ${added} 位、更新 ${updated} 位安裝師。新增的人會先出現在對應區域最下面的待指派位置，記得手動拖到門市/動線卡片上。${errs.length? '\n有問題的列：\n'+errs.join('\n') : ''}`);
+  }
+
+  function monthNum(label){
+    const m=label.match(/^(\d{1,2})/);
+    return m ? parseInt(m[1],10) : 999; // 年度 sorts last
+  }
+
+  function doPastePerf(){
+    const text=document.getElementById('pastePerf').value;
+    const lines=text.split('\n').map(l=>l.replace(/\r$/,''));
+    const perfByCode={};
+    let skipped=0;
+    lines.forEach(line=>{
+      if(!line.trim()) return;
+      const cols=line.split('\t').map(c=>c.trim()).filter(c=>c!=='');
+      if(cols.length<3){ skipped++; return; }
+      const monthLabel=cols[0];
+      const nameCol=cols[1];
+      const amountStr=cols[cols.length-1];
+      const m=nameCol.match(/^(\d{2,4})/);
+      if(!m){ skipped++; return; }
+      const code=m[1];
+      const amount=parseFloat(amountStr.replace(/[,\s]/g,''));
+      if(isNaN(amount)){ skipped++; return; }
+      if(!perfByCode[code]) perfByCode[code]={months:{}, annual:null, name:nameCol};
+      if(monthLabel==='年度'){
+        if(perfByCode[code].annual===null) perfByCode[code].annual=amount;
+      } else if(!(monthLabel in perfByCode[code].months)){
+        perfByCode[code].months[monthLabel]=amount;
+      }
+    });
+
+    let updated=0; const errs=[];
+    const fmt=n=>Math.round(n).toLocaleString('en-US');
+    Object.entries(perfByCode).forEach(([code,data])=>{
+      const sid=findStoreIdByCode(code);
+      if(!sid){ errs.push(`找不到門市代號「${code}」（${data.name}）`); return; }
+      const monthEntries=Object.entries(data.months).sort((a,b)=>monthNum(a[0])-monthNum(b[0]));
+      if(monthEntries.length===0 && data.annual===null) return;
+      const sum=monthEntries.reduce((s,[,v])=>s+v,0);
+      const current= monthEntries.length ? monthEntries[monthEntries.length-1][1] : (data.annual||0);
+      const lastLabel= monthEntries.length ? monthEntries[monthEntries.length-1][0] : '';
+      const cumulative= data.annual!==null ? data.annual : sum;
+      // 月均排除最後一個月（視為當月未滿一整月，例如 1-7月資料中的 7月），只用完整月份計算
+      const fullMonths = monthEntries.length>1 ? monthEntries.slice(0, -1) : monthEntries;
+      const fullSum = fullMonths.reduce((s,[,v])=>s+v,0);
+      const avg = fullMonths.length ? fullSum/fullMonths.length : cumulative;
+      const avgLabel = fullMonths.length>1 ? `${fullMonths[0][0]}-${fullMonths[fullMonths.length-1][0]}` : (fullMonths.length===1 ? fullMonths[0][0] : '');
+      state.stores[sid].perf={
+        current: fmt(current)+(lastLabel?`（${lastLabel}）`:''),
+        cumulative: fmt(cumulative),
+        avg: fmt(avg)+(avgLabel?`（${avgLabel}均）`:'')
+      };
+      updated++;
+    });
+    render(); scheduleSave();
+    showResult('resultPerf', errs.length===0,
+      `完成：更新 ${updated} 間門市的業績資料。${skipped? `（略過 ${skipped} 列格式不完整或重複資料）` : ''}${errs.length? '\n找不到對應門市代號：\n'+errs.join('\n') : ''}`);
+  }
+
+  // ============ Backup export / import ============
+  function doExportBackup(){
+    const blob=new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const ts=new Date().toISOString().slice(0,10).replace(/-/g,'');
+    a.href=url;
+    a.download=`安裝師動線備份_${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showResult('resultBackup', true, '已匯出備份檔案，請到瀏覽器的下載項目裡確認。');
+  }
+
+  function doImportBackupFile(file){
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+      try{
+        const parsed=JSON.parse(e.target.result);
+        if(!parsed || !parsed.stores || !parsed.groups){ throw new Error('missing fields'); }
+        state=migrateIfNeeded(parsed);
+        render();
+        renderRegionList();
+        scheduleSave();
+        showResult('resultBackup', true, '備份還原成功，畫面已經更新成備份裡的資料。');
+      }catch(err){
+        showResult('resultBackup', false, '這個檔案看起來不是有效的備份格式，還原失敗。');
+      }
+    };
+    reader.onerror=()=>{ showResult('resultBackup', false, '讀取檔案失敗，請再試一次。'); };
+    reader.readAsText(file);
+  }
+
+  // ============ Boot ============
+  (async function init(){
+    await loadState();
+    render();
+    buildPasteView();
+  })();
+
+})();
+</script>
+</body>
+</html>
