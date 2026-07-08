@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>安裝師人力 / 動線規劃板</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg:#f4f5f7;
@@ -369,11 +370,32 @@
   const saveIndicator=document.getElementById('saveIndicator');
   const STORAGE_KEY='install-planner-state';
 
-  // Uses Claude's window.storage when running as a Claude artifact; automatically falls back
-  // to the browser's own localStorage when this file is hosted/opened outside Claude.ai
-  // (e.g. on your own domain, or opened directly as a local file).
+  // ---- Supabase cloud sync (shared across all devices/browsers) ----
+  const SUPABASE_URL='https://dsejdajfvubzsnberjog.supabase.co';
+  const SUPABASE_KEY='sb_publishable_qkyDtG70PEs038XkDDv4uA_artiGy0y';
+  let supabaseClient=null;
+  try{
+    if(window.supabase && window.supabase.createClient){
+      supabaseClient=window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+  }catch(e){ supabaseClient=null; }
+
+  let lastSyncedValue=null; // used to tell "my own save echoing back" apart from "someone else changed it"
+
+  // Priority: Supabase (shared cloud, works across every device) > Claude's window.storage (this artifact only)
+  // > browser localStorage (this browser only). Falls through automatically if a layer is unavailable.
   const storageAdapter = {
     async get(key){
+      if(supabaseClient){
+        try{
+          const {data, error}=await supabaseClient.from('planner_data').select('payload').eq('id', key).maybeSingle();
+          if(!error && data && data.payload){
+            const value=JSON.stringify(data.payload);
+            lastSyncedValue=value;
+            return {key, value};
+          }
+        }catch(e){ /* fall through to local */ }
+      }
       if(typeof window.storage!=='undefined' && window.storage && window.storage.get){
         return await window.storage.get(key, false);
       }
@@ -383,6 +405,14 @@
       }catch(e){ return null; }
     },
     async set(key, value){
+      if(supabaseClient){
+        try{
+          const {error}=await supabaseClient.from('planner_data').upsert({
+            id:key, payload:JSON.parse(value), updated_at:new Date().toISOString()
+          });
+          if(!error){ lastSyncedValue=value; return {key, value}; }
+        }catch(e){ /* fall through to local */ }
+      }
       if(typeof window.storage!=='undefined' && window.storage && window.storage.set){
         return await window.storage.set(key, value, false);
       }
@@ -399,7 +429,7 @@
     saveTimer=setTimeout(async ()=>{
       try{
         const ok=await storageAdapter.set(STORAGE_KEY, JSON.stringify(state));
-        saveIndicator.textContent= ok ? '已自動儲存 ✓' : '儲存失敗（僅暫存於此頁）';
+        saveIndicator.textContent= ok ? (supabaseClient?'已同步到雲端 ☁️✓':'已自動儲存 ✓') : '儲存失敗（僅暫存於此頁）';
       }catch(e){ saveIndicator.textContent='儲存失敗（僅暫存於此頁）'; }
     }, 450);
   }
@@ -424,12 +454,33 @@
       const res=await storageAdapter.get(STORAGE_KEY);
       if(res && res.value){
         state=migrateIfNeeded(JSON.parse(res.value));
-        saveIndicator.textContent='已載入先前的排列';
+        saveIndicator.textContent= supabaseClient ? '已從雲端載入最新資料 ☁️' : '已載入先前的排列';
         return;
       }
     }catch(e){ /* not found */ }
     state=buildInitialState();
     saveIndicator.textContent='已載入原始資料';
+  }
+
+  // Listen for changes made by *other* devices/tabs and pull them in live.
+  function setupRealtimeSync(){
+    if(!supabaseClient) return;
+    try{
+      supabaseClient
+        .channel('planner_data_changes')
+        .on('postgres_changes', {event:'*', schema:'public', table:'planner_data', filter:`id=eq.${STORAGE_KEY}`}, (payload)=>{
+          const incoming=payload.new && payload.new.payload;
+          if(!incoming) return;
+          const incomingStr=JSON.stringify(incoming);
+          if(incomingStr===lastSyncedValue) return; // this is just our own write echoing back
+          lastSyncedValue=incomingStr;
+          state=migrateIfNeeded(JSON.parse(incomingStr));
+          render();
+          if(document.getElementById('regionList')) renderRegionList();
+          saveIndicator.textContent='📥 已同步其他裝置的最新更新';
+        })
+        .subscribe();
+    }catch(e){ /* realtime not available, silent no-op — manual reload still gets latest via get() */ }
   }
 
   // ============ Custom modal (native confirm/prompt are blocked in sandboxed artifacts) ============
@@ -1438,6 +1489,7 @@
     await loadState();
     render();
     buildPasteView();
+    setupRealtimeSync();
   })();
 
 })();
