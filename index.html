@@ -159,6 +159,8 @@
   .ov-region-title{display:flex;align-items:baseline;gap:10px;justify-content:center;margin-bottom:14px;flex-wrap:wrap;}
   .ov-region-title h2{margin:0;font-size:16px;}
   .ov-region-stats{font-size:11.5px;color:var(--muted);}
+  .ov-region-perf-row{text-align:center;margin-bottom:8px;}
+  .ov-region-perf{font-size:12px;font-weight:700;color:#6F96A2;background:#e7eef0;border-radius:6px;padding:3px 10px;}
   .ov-loose{font-size:12px;color:var(--warn);text-align:center;margin:0 0 10px;}
   .ov-scroll{overflow-x:auto;padding-bottom:14px;}
 
@@ -575,6 +577,13 @@
     if(title.includes('助理')) return {tag:'#9E8CA6', bg:'#efe9f2'};      // 助理安裝師 - dusty purple
     return {tag:'#6F96A2', bg:'#e7eef0'};                                  // 安裝師 (regular) - ocean slate
   }
+  function shortTitle(title){
+    if(!title) return '';
+    if(title.includes('組長')) return '組長';
+    if(title.includes('助理')) return '助理';
+    if(title.includes('安裝師')) return '安裝師';
+    return title;
+  }
   function titleSortRank(title){
     if(!title) return 3;
     if(title.includes('組長')) return 0;
@@ -807,7 +816,8 @@
       const groupsHere=groupsInColumn(region.id);
       const looseIds=looseInstallersInColumn(region.id);
       const withInstaller=groupsHere.filter(g=>g.installerIds.length>0).length;
-      const regionInstallerIds=groupsHere.reduce((arr,g)=>arr.concat(g.installerIds), []);
+      const assignedInstallerIds=groupsHere.reduce((arr,g)=>arr.concat(g.installerIds), []);
+      const allRegionInstallerIds=assignedInstallerIds.concat(looseIds);
 
       const storeCount=groupsHere.reduce((n,g)=>n+g.storeIds.length,0);
       col.innerHTML=`
@@ -816,7 +826,7 @@
           <div class="col-pills">
             ${region.id==='stage'
               ? `<span class="col-pill">拖放暫存／待補位</span>`
-              : `<span class="col-pill">${storeCount} 間門市</span><span class="col-pill">${withInstaller} 條動線</span>${titleCountsHtml(regionInstallerIds, true)}`}
+              : `<span class="col-pill">${storeCount} 間門市</span><span class="col-pill">${withInstaller} 條動線</span>${titleCountsHtml(allRegionInstallerIds, true)}<span class="col-pill">共 ${allRegionInstallerIds.length} 位</span><span class="col-pill">閒置 ${looseIds.length} 位</span>`}
           </div>
         </div>
         <div class="col-body" data-col-body="${region.id}"></div>
@@ -899,7 +909,7 @@
         chip.innerHTML=`
           <span class="handle" data-drag="installer" data-id="${instId}" title="拖曳搬動">⠿</span>
           <span class="iname">${inst.name}</span>
-          <span class="ititle" style="color:${tc.tag};background:${tc.bg};">${inst.title}</span>
+          <span class="ititle" style="color:${tc.tag};background:${tc.bg};" title="${inst.title}">${shortTitle(inst.title)}</span>
           <span class="itenure">${inst.tenure}</span>
           <span class="ix" data-unassign="${instId}" title="移除安裝師">✕</span>
         `;
@@ -928,7 +938,7 @@
     el.innerHTML=`
       <span class="handle" data-drag="installer" data-id="${instId}" title="拖曳搬動">⠿</span>
       <span class="iname">${inst.name}</span>
-      <span class="ititle" style="color:${tc.tag};background:${tc.bg};">${inst.title}</span>
+      <span class="ititle" style="color:${tc.tag};background:${tc.bg};" title="${inst.title}">${shortTitle(inst.title)}</span>
       <span class="itenure">${inst.tenure}</span>
       <span class="loose-tag">待指派</span>
       ${noteHtml}
@@ -1203,6 +1213,13 @@
       </li>`;
   }
 
+  function parseNum(str){
+    if(!str) return 0;
+    const m=String(str).match(/^-?[\d,]+/);
+    if(!m) return 0;
+    return parseFloat(m[0].replace(/,/g,'')) || 0;
+  }
+
   function renderOverview(){
     const sections = allColumns().map(region=>{
       const groups = groupsInColumn(region.id).filter(g=>g.storeIds.length>0);
@@ -1210,7 +1227,19 @@
       if(groups.length===0 && looseIds.length===0) return '';
       const storeCount = groups.reduce((n,g)=>n+g.storeIds.length,0);
       const withInstaller = groups.filter(g=>g.installerIds.length>0).length;
-      const regionInstallerIds = groups.reduce((arr,g)=>arr.concat(g.installerIds), []);
+      const regionInstallerIds = groups.reduce((arr,g)=>arr.concat(g.installerIds), []).concat(looseIds);
+
+      let regionCumulative=0, regionAvg=0, hasPerf=false;
+      groups.forEach(g=>g.storeIds.forEach(sid=>{
+        const s=state.stores[sid];
+        if(s && s.perf){
+          hasPerf=true;
+          regionCumulative+=parseNum(s.perf.cumulative);
+          regionAvg+=parseNum(s.perf.avg);
+        }
+      }));
+      const fmt=n=>Math.round(n).toLocaleString('en-US');
+      const perfHtml = hasPerf ? `<span class="ov-region-perf">年度合計 ${fmt(regionCumulative)}／月均合計 ${fmt(regionAvg)}</span>` : '';
 
       const looseHtml = looseIds.length
         ? `<div class="ov-loose">待指派安裝師：${looseIds.map(iid=>{const i=state.installers[iid]; if(!i) return ''; return i.note? `${i.name}（${i.note}）` : i.name;}).filter(Boolean).join('、')}</div>`
@@ -1232,6 +1261,7 @@
             <h2>${region.name}</h2>
             <span class="ov-region-stats">${storeCount} 間門市・${withInstaller}/${groups.length} 條動線已配置安裝師・${titleCountsHtml(regionInstallerIds, false)}</span>
           </div>
+          ${perfHtml ? `<div class="ov-region-perf-row">${perfHtml}</div>` : ''}
           ${looseHtml}
           ${treeHtml}
         </div>`;
