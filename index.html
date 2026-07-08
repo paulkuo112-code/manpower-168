@@ -33,14 +33,16 @@
 
   /* ---------- Top nav ---------- */
   .navbar{
-    display:flex;align-items:center;gap:6px;padding:10px 18px 0;background:var(--panel);
+    display:flex;align-items:flex-end;gap:6px;padding:12px 18px 0;background:var(--panel-2);
     border-bottom:1px solid var(--border);flex-shrink:0;
   }
   .navtab{
-    padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;
-    border-bottom:2px solid transparent;
+    padding:9px 18px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;
+    background:#e7e9ec;border:1px solid var(--border);border-bottom:none;
+    border-radius:10px 10px 0 0;position:relative;top:1px;
   }
-  .navtab.active{color:var(--line);border-bottom-color:var(--line);}
+  .navtab:hover{background:#eef0f2;color:var(--text);}
+  .navtab.active{color:var(--line);background:var(--panel);border-color:var(--border);box-shadow:0 -2px 4px rgba(0,0,0,.04);}
 
   /* ---------- Header ---------- */
   .topbar{padding:12px 18px 10px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
@@ -75,7 +77,7 @@
   .vacancy-region-name{font-size:12px;font-weight:700;margin-right:6px;}
 
   /* ---------- Board ---------- */
-  .board{flex:1;display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:14px 18px;scroll-snap-type:x proximity;}
+  .board{flex:1;display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:14px 18px 14px 26px;scroll-snap-type:x proximity;scroll-padding-left:26px;}
   .column{flex:0 0 264px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:12px;scroll-snap-align:start;max-height:100%;overflow:hidden;}
   .column.staging{border-style:dashed;border-color:#c7cdd6;background:#fafbfc;}
   .col-banner{height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14.5px;font-weight:700;letter-spacing:.3px;padding:0 10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -141,6 +143,10 @@
   .loose-installer .ititle{font-size:9.5px;color:#7A4F45;}
   .loose-installer .itenure{font-size:9.5px;color:#7A4F45;}
   .loose-tag{font-size:9.5px;color:#8C6B58;margin-left:2px;}
+  .installer-note{font-size:9.5px;color:#8C6B58;width:100%;cursor:pointer;background:#F1E6E2;border-radius:5px;padding:2px 6px;margin-top:2px;}
+  .installer-note:hover{background:#E6D2C8;}
+  .note-add{font-size:9.5px;color:var(--line);cursor:pointer;width:100%;margin-top:2px;}
+  .note-add:hover{text-decoration:underline;}
 
   .drag-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:0.95;transform:translate(-50%,-50%);box-shadow:0 8px 24px rgba(0,0,0,.18);border-radius:10px;}
 
@@ -259,7 +265,6 @@
       <div class="toolbar">
         <input class="search" id="search" placeholder="搜尋門市代號 / 門市名 / 安裝師姓名..." />
         <button class="btn" id="expandVacancy">缺口清單</button>
-        <button class="btn" id="resetBtn">重置回原始資料</button>
         <span class="save-indicator" id="saveIndicator">已載入</span>
         <span class="cloud-status" id="cloudStatus">☁️ 檢查雲端連線中...</span>
       </div>
@@ -551,14 +556,6 @@
     });
   }
 
-  async function resetState(){
-    const ok=await customConfirm('確定要重置回原始資料嗎？目前的動線調整將會遺失。');
-    if(!ok) return;
-    state=buildInitialState();
-    render();
-    scheduleSave();
-  }
-
   // ============ Helpers ============
   function regionOf(id){ return allColumns().find(r=>r.id===id); }
   function groupsInColumn(colId){ return state.groups.filter(g=>g.columnId===colId); }
@@ -571,6 +568,42 @@
   function totalStores(){ return Object.keys(state.stores).length; }
   function totalInstallers(){ return Object.keys(state.installers).length; }
   function totalVacantStores(){ return vacantGroups().reduce((n,g)=>n+g.storeIds.length,0); }
+
+  function titleColor(title){
+    if(!title) return {tag:'#9aa1ab', bg:'#f0f1f3'};
+    if(title.includes('組長')) return {tag:'#C08A5A', bg:'#f5ebe0'};       // 安裝師組長 - warm tan
+    if(title.includes('助理')) return {tag:'#9E8CA6', bg:'#efe9f2'};      // 助理安裝師 - dusty purple
+    return {tag:'#6F96A2', bg:'#e7eef0'};                                  // 安裝師 (regular) - ocean slate
+  }
+  function titleSortRank(title){
+    if(!title) return 3;
+    if(title.includes('組長')) return 0;
+    if(title.includes('助理')) return 2;
+    return 1; // plain 安裝師 sits between 組長 and 助理
+  }
+  function sortTitleEntries(entries){
+    return entries.sort((a,b)=> titleSortRank(a[0])-titleSortRank(b[0]) || a[0].localeCompare(b[0]));
+  }
+  function countByTitle(installerIds){
+    const counts={};
+    installerIds.forEach(id=>{
+      const t=state.installers[id]?.title || '未分類';
+      counts[t]=(counts[t]||0)+1;
+    });
+    return counts;
+  }
+  function titleCountsHtml(installerIds, asPills){
+    const counts=countByTitle(installerIds);
+    const entries=sortTitleEntries(Object.entries(counts));
+    if(entries.length===0) return asPills ? '' : '0 位安裝師';
+    if(asPills){
+      return entries.map(([title,n])=>{
+        const c=titleColor(title);
+        return `<span class="col-pill" style="background:${c.bg};color:${c.tag};font-weight:700;">${title} ${n}</span>`;
+      }).join('');
+    }
+    return entries.map(([title,n])=>`${title} <b>${n}</b>`).join('　');
+  }
   function groupLabel(g){
     if(g.label) return g.label;
     const names=g.storeIds.map(sid=>state.stores[sid]?.name).filter(Boolean);
@@ -707,6 +740,18 @@
     scheduleSave();
   }
 
+  async function editInstallerNote(instId){
+    const inst=state.installers[instId];
+    if(!inst) return;
+    const result=await customPromptMulti('編輯備註', [
+      {key:'note', label:'備註（例：病假、休假中、暫調支援...）', value:inst.note||''}
+    ]);
+    if(!result) return;
+    inst.note = result.note.trim() || null;
+    render();
+    scheduleSave();
+  }
+
   // ============ Rendering: board ============
   const board=document.getElementById('board');
   const statsEl=document.getElementById('stats');
@@ -729,11 +774,14 @@
   }
 
   function render(){
-    const vacant=totalVacantStores();
+    const allInstallerIds=Object.keys(state.installers);
+    const titleBoxes=sortTitleEntries(Object.entries(countByTitle(allInstallerIds))).map(([title,n])=>{
+      const c=titleColor(title);
+      return `<div class="stat" style="border-color:${c.tag};background:${c.bg};"><span style="color:${c.tag};">${title}</span> <b style="color:${c.tag};">${n}</b></div>`;
+    }).join('');
     statsEl.innerHTML=`
       <div class="stat">門市總數 <b>${totalStores()}</b></div>
-      <div class="stat">安裝師總數 <b>${totalInstallers()}</b></div>
-      <div class="stat ${vacant>0?'warn':''}">尚缺安裝師的門市 <b>${vacant}</b></div>
+      ${titleBoxes}
       <div class="stat">動線 / 群組數 <b>${state.groups.filter(g=>g.storeIds.length>0||g.label).length}</b></div>
     `;
 
@@ -759,7 +807,7 @@
       const groupsHere=groupsInColumn(region.id);
       const looseIds=looseInstallersInColumn(region.id);
       const withInstaller=groupsHere.filter(g=>g.installerIds.length>0).length;
-      const instCount=groupsHere.reduce((n,g)=>n+g.installerIds.length,0);
+      const regionInstallerIds=groupsHere.reduce((arr,g)=>arr.concat(g.installerIds), []);
 
       const storeCount=groupsHere.reduce((n,g)=>n+g.storeIds.length,0);
       col.innerHTML=`
@@ -768,7 +816,7 @@
           <div class="col-pills">
             ${region.id==='stage'
               ? `<span class="col-pill">拖放暫存／待補位</span>`
-              : `<span class="col-pill">${storeCount} 間門市</span><span class="col-pill">${withInstaller} 條動線</span><span class="col-pill">${instCount} 位安裝師</span>`}
+              : `<span class="col-pill">${storeCount} 間門市</span><span class="col-pill">${withInstaller} 條動線</span>${titleCountsHtml(regionInstallerIds, true)}`}
           </div>
         </div>
         <div class="col-body" data-col-body="${region.id}"></div>
@@ -847,10 +895,11 @@
         if(!inst) return;
         const chip=document.createElement('div');
         chip.className='installer-chip';
+        const tc=titleColor(inst.title);
         chip.innerHTML=`
           <span class="handle" data-drag="installer" data-id="${instId}" title="拖曳搬動">⠿</span>
           <span class="iname">${inst.name}</span>
-          <span class="ititle">${inst.title}</span>
+          <span class="ititle" style="color:${tc.tag};background:${tc.bg};">${inst.title}</span>
           <span class="itenure">${inst.tenure}</span>
           <span class="ix" data-unassign="${instId}" title="移除安裝師">✕</span>
         `;
@@ -872,19 +921,23 @@
     const inst=state.installers[instId];
     const el=document.createElement('div');
     el.className='loose-installer';
+    const tc=titleColor(inst.title);
+    const noteHtml = inst.note
+      ? `<span class="installer-note" data-edit-note="${instId}" title="點擊編輯備註">📝 ${inst.note}</span>`
+      : `<span class="note-add" data-edit-note="${instId}">＋備註</span>`;
     el.innerHTML=`
       <span class="handle" data-drag="installer" data-id="${instId}" title="拖曳搬動">⠿</span>
       <span class="iname">${inst.name}</span>
-      <span class="ititle">${inst.title}</span>
+      <span class="ititle" style="color:${tc.tag};background:${tc.bg};">${inst.title}</span>
       <span class="itenure">${inst.tenure}</span>
       <span class="loose-tag">待指派</span>
+      ${noteHtml}
     `;
     return el;
   }
 
   // ============ Non-drag events ============
   document.getElementById('search').addEventListener('input', e=>{ searchTerm=e.target.value.trim(); render(); });
-  document.getElementById('resetBtn').addEventListener('click', resetState);
   document.getElementById('expandVacancy').addEventListener('click', ()=> vacancyBanner.classList.toggle('show'));
 
   board.addEventListener('click', e=>{
@@ -908,6 +961,9 @@
     if(addPerf){ addManualPerf(addPerf.dataset.addPerf); return; }
     const editPerf=e.target.closest('[data-edit-perf]');
     if(editPerf){ addManualPerf(editPerf.dataset.editPerf); return; }
+
+    const editNote=e.target.closest('[data-edit-note]');
+    if(editNote){ editInstallerNote(editNote.dataset.editNote); return; }
   });
 
   vacancyBanner.addEventListener('click', e=>{
@@ -1120,7 +1176,7 @@
     const borderStyle = vacant ? '' : `style="border-color:${hexToRgba(region.color,0.55)}"`;
     if(g.storeIds.length<=1){
       const s = g.storeIds.length ? state.stores[g.storeIds[0]] : null;
-      const perf = (s && s.perf && s.perf.avg) ? `<span class="org-perf">月均 ${s.perf.avg}</span>` : '';
+      const perf = (s && s.perf) ? `<span class="org-perf">年度 ${s.perf.cumulative||'-'}／月均 ${s.perf.avg||'-'}</span>` : '';
       return `
         <li>
           <div class="org-node ${vacant?'org-vacant':''}" ${borderStyle}>
@@ -1134,7 +1190,7 @@
     const leaves = g.storeIds.map(sid=>{
       const s=state.stores[sid];
       if(!s) return '';
-      const perf = (s.perf && s.perf.avg) ? `<span class="org-perf">月均 ${s.perf.avg}</span>` : '';
+      const perf = (s.perf) ? `<span class="org-perf">年度 ${s.perf.cumulative||'-'}／月均 ${s.perf.avg||'-'}</span>` : '';
       return `<li><div class="org-node" style="border-color:${hexToRgba(region.color,0.4)}"><span class="org-store">${s.name}</span><span class="org-code">${s.code}</span>${perf}</div></li>`;
     }).join('');
     return `
@@ -1154,10 +1210,10 @@
       if(groups.length===0 && looseIds.length===0) return '';
       const storeCount = groups.reduce((n,g)=>n+g.storeIds.length,0);
       const withInstaller = groups.filter(g=>g.installerIds.length>0).length;
-      const instCount = groups.reduce((n,g)=>n+g.installerIds.length,0);
+      const regionInstallerIds = groups.reduce((arr,g)=>arr.concat(g.installerIds), []);
 
       const looseHtml = looseIds.length
-        ? `<div class="ov-loose">待指派安裝師：${looseIds.map(iid=>state.installers[iid]?.name).filter(Boolean).join('、')}</div>`
+        ? `<div class="ov-loose">待指派安裝師：${looseIds.map(iid=>{const i=state.installers[iid]; if(!i) return ''; return i.note? `${i.name}（${i.note}）` : i.name;}).filter(Boolean).join('、')}</div>`
         : '';
 
       const treeHtml = groups.length ? `
@@ -1174,7 +1230,7 @@
         <div class="ov-region">
           <div class="ov-region-title">
             <h2>${region.name}</h2>
-            <span class="ov-region-stats">${storeCount} 間門市・${withInstaller}/${groups.length} 條動線已配置安裝師・共 ${instCount} 位安裝師</span>
+            <span class="ov-region-stats">${storeCount} 間門市・${withInstaller}/${groups.length} 條動線已配置安裝師・${titleCountsHtml(regionInstallerIds, false)}</span>
           </div>
           ${looseHtml}
           ${treeHtml}
