@@ -207,6 +207,8 @@
   }
   .org-root{ color:#fff; font-weight:700; font-size:13px; border:none; padding:8px 18px; box-shadow:0 2px 6px rgba(0,0,0,.12); }
   .org-route-label{ font-weight:700; font-size:11px; }
+  .org-inst-node{ background:#F2ECEE; }
+  .org-inst-name{ font-weight:700; font-size:11.5px; color:#3F5D63; }
   .org-store{ font-weight:700; font-size:11px; }
   .org-inst{ font-size:10px; color:#3F5D63; font-weight:600; }
   .org-node.org-vacant{ border:1.5px dashed var(--warn-border); background:var(--warn-bg); }
@@ -535,15 +537,22 @@
     return s;
   }
 
+  function looksLikeValidState(obj){
+    return !!(obj && typeof obj==='object' && obj.groups && obj.stores && obj.installers);
+  }
+
   async function loadState(){
     try{
       const res=await storageAdapter.get(STORAGE_KEY);
       if(res && res.value){
-        state=migrateIfNeeded(JSON.parse(res.value));
-        saveIndicator.textContent= supabaseClient ? '已從雲端載入最新資料 ☁️' : '已載入先前的排列';
-        return;
+        const parsed=JSON.parse(res.value);
+        if(looksLikeValidState(parsed)){
+          state=migrateIfNeeded(parsed);
+          saveIndicator.textContent= supabaseClient ? '已從雲端載入最新資料 ☁️' : '已載入先前的排列';
+          return;
+        }
       }
-    }catch(e){ /* not found */ }
+    }catch(e){ /* not found or corrupted — fall through to a fresh default */ }
     state=buildInitialState();
     saveIndicator.textContent='已載入原始資料';
   }
@@ -556,7 +565,7 @@
         .channel('planner_data_changes')
         .on('postgres_changes', {event:'*', schema:'public', table:'planner_data', filter:`id=eq.${STORAGE_KEY}`}, (payload)=>{
           const incoming=payload.new && payload.new.payload;
-          if(!incoming) return;
+          if(!incoming || !looksLikeValidState(incoming)) return;
           const incomingStr=JSON.stringify(incoming);
           if(incomingStr===lastSyncedValue) return; // this is just our own write echoing back
           lastSyncedValue=incomingStr;
@@ -1304,16 +1313,26 @@
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
+  function stripMonthLabel(str){
+    return str ? String(str).replace(/（[^）]*）/g,'').trim() : str;
+  }
+  function instNamesWithTitle(installerIds){
+    if(!installerIds.length) return '缺';
+    return installerIds.map(iid=>{
+      const inst=state.installers[iid];
+      if(!inst) return null;
+      return `${inst.name}（${shortTitle(inst.title)}）`;
+    }).filter(Boolean).join('、');
+  }
+
   function renderRouteNode(g, region){
     const vacant = g.installerIds.length===0;
-    const instText = g.installerIds.length
-      ? g.installerIds.map(iid=>state.installers[iid]?.name).filter(Boolean).join('、')
-      : '缺';
+    const instText = instNamesWithTitle(g.installerIds);
     const borderStyle = vacant ? '' : `style="border-color:${hexToRgba(region.color,0.55)}"`;
     if(g.storeIds.length<=1){
       const s = g.storeIds.length ? state.stores[g.storeIds[0]] : null;
       const isCopy = s && s.homeRegion && s.homeRegion!==g.columnId;
-      const perf = (s && s.perf) ? `<span class="org-perf">年度 ${s.perf.cumulative||'-'}</span>` : '';
+      const perf = (s && s.perf) ? `<span class="org-perf">年度 ${s.perf.cumulative||'-'}／月均 ${stripMonthLabel(s.perf.avg)||'-'}</span>` : '';
       const copyTag = isCopy ? `<span class="org-copy-tag">複製・${regionOf(s.homeRegion)?.name||s.homeRegion}</span>` : '';
       return `
         <li>
@@ -1326,19 +1345,29 @@
           </div>
         </li>`;
     }
+    // Merged route (2+ stores): add a dedicated tier for the installer, with the route's combined performance,
+    // then the individual stores underneath.
+    let routeCum=0, routeAvg=0, hasPerf=false;
+    g.storeIds.forEach(sid=>{
+      const s=state.stores[sid];
+      if(s && s.perf){ hasPerf=true; routeCum+=parseNum(s.perf.cumulative); routeAvg+=parseNum(s.perf.avg); }
+    });
+    const fmt=n=>Math.round(n).toLocaleString('en-US');
+    const routePerfHtml = hasPerf ? `<span class="org-perf">年度 ${fmt(routeCum)}／月均 ${fmt(routeAvg)}</span>` : '';
+
     const leaves = g.storeIds.map(sid=>{
       const s=state.stores[sid];
       if(!s) return '';
       const isCopy = s.homeRegion && s.homeRegion!==g.columnId;
       const copyTag = isCopy ? `<span class="org-copy-tag">複製・${regionOf(s.homeRegion)?.name||s.homeRegion}</span>` : '';
-      const perf = (s.perf) ? `<span class="org-perf">年度 ${s.perf.cumulative||'-'}</span>` : '';
+      const perf = (s.perf) ? `<span class="org-perf">年度 ${s.perf.cumulative||'-'}／月均 ${stripMonthLabel(s.perf.avg)||'-'}</span>` : '';
       return `<li><div class="org-node" style="border-color:${hexToRgba(region.color,0.4)}"><span class="org-store">${s.name}</span><span class="org-code">${s.code}</span>${copyTag}${perf}</div></li>`;
     }).join('');
     return `
       <li>
-        <div class="org-node ${vacant?'org-vacant':''}" ${borderStyle}>
-          <span class="org-route-label">${groupLabel(g)}</span>
-          <span class="org-inst">${instText}</span>
+        <div class="org-node org-inst-node ${vacant?'org-vacant':''}" ${borderStyle}>
+          <span class="org-inst-name">${instText}</span>
+          ${routePerfHtml}
         </div>
         <ul>${leaves}</ul>
       </li>`;
@@ -1759,7 +1788,7 @@
     reader.onload=(e)=>{
       try{
         const parsed=JSON.parse(e.target.result);
-        if(!parsed || !parsed.stores || !parsed.groups){ throw new Error('missing fields'); }
+        if(!looksLikeValidState(parsed)){ throw new Error('missing fields'); }
         state=migrateIfNeeded(parsed);
         render();
         renderRegionList();
