@@ -86,6 +86,15 @@
   .col-title{font-weight:700;font-size:13.5px;}
   .col-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
   .col-pill{background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:10.5px;color:var(--muted);white-space:nowrap;}
+  .lock-row{margin-top:8px;}
+  .lock-badge{display:inline-block;width:100%;text-align:center;font-size:11px;font-weight:700;border-radius:7px;padding:5px 6px;cursor:pointer;box-sizing:border-box;}
+  .lock-badge.locked{background:#f0f1f3;color:#6b7280;border:1px dashed #c7cdd6;}
+  .lock-badge.locked:hover{background:#e7e9ec;}
+  .lock-badge.unlocked{background:#e7f7ee;color:#1b6b3d;border:1px solid #b7e6c9;}
+  .lock-badge.unlocked:hover{background:#d9f0e4;}
+  @keyframes lockShake{0%,100%{transform:translateX(0);}20%{transform:translateX(-4px);}40%{transform:translateX(4px);}60%{transform:translateX(-3px);}80%{transform:translateX(3px);}}
+  .lock-badge.lock-shake{animation:lockShake .35s ease;}
+  .col-body.col-locked{background:repeating-linear-gradient(45deg,#fafbfc,#fafbfc 10px,#f1f2f4 10px,#f1f2f4 20px);}
   .col-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:60px;}
   .col-body.drop-hover{background:var(--line-bg);outline:2px dashed var(--line);outline-offset:-4px;}
   .col-body.drop-blocked{background:#fdecec;outline:2px dashed var(--danger);outline-offset:-4px;cursor:not-allowed;}
@@ -118,6 +127,9 @@
     -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;}
   .store-code{font-family:var(--mono);font-size:10.5px;color:#8b93a0;flex-shrink:0;}
   .store-name{color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .store-line.store-copy{background:#EEF1F6;border:1px dashed #A2B0CE;}
+  .copy-badge{font-size:9px;font-weight:700;color:#4F6A99;background:#DDE4F3;border-radius:5px;padding:1px 6px;flex-shrink:0;white-space:nowrap;}
+  .shared-route-note{width:100%;font-size:10px;color:#4F6A99;background:#EEF1F6;border:1px dashed #A2B0CE;border-radius:6px;padding:4px 7px;margin-top:6px;line-height:1.5;}
   .store-x{cursor:pointer;color:#a3a9b3;font-size:12px;flex-shrink:0;padding:0 2px;}
   .store-x:hover{color:var(--danger);}
   .perf-add{cursor:pointer;color:var(--line);font-size:10.5px;flex-shrink:0;}
@@ -160,6 +172,8 @@
   .ov-region-title h2{margin:0;font-size:16px;}
   .ov-region-stats{font-size:11.5px;color:var(--muted);}
   .ov-region-perf-row{text-align:center;margin-bottom:8px;}
+  .ov-combined{max-width:640px;margin:0 auto 30px;background:#EEF1F6;border:1.5px dashed #A2B0CE;border-radius:10px;padding:14px 18px;text-align:center;}
+  .ov-combined-title{font-weight:700;font-size:13.5px;color:#4F6A99;margin-bottom:6px;}
   .ov-region-perf{font-size:12px;font-weight:700;color:#6F96A2;background:#e7eef0;border-radius:6px;padding:3px 10px;}
   .ov-loose{font-size:12px;color:var(--warn);text-align:center;margin:0 0 10px;}
   .ov-scroll{overflow-x:auto;padding-bottom:14px;}
@@ -198,6 +212,7 @@
   .org-node.org-vacant .org-inst{ color:var(--warn); }
   .org-code{ font-family:var(--mono); font-size:9.5px; color:var(--muted); font-weight:400; }
   .org-perf{ font-size:9.5px; color:#6F96A2; font-weight:600; }
+  .org-copy-tag{ font-size:8.5px; font-weight:700; color:#4F6A99; background:#DDE4F3; border-radius:5px; padding:1px 5px; }
 
   @media print{
     .navbar, .ov-toolbar{display:none!important;}
@@ -299,6 +314,56 @@
   const NEW_REGION_COLOR_PALETTE = ['#C6BBC6','#9CAEDB','#87A4BC','#A5C5C2','#C7D1D2','#90A7A5','#92ADAF','#D6C7D9','#B9A5BB','#C8B4D0','#D9CBE0','#BDAECF'];
   function allColumns(){ return [...state.regions, STAGE_DEF]; }
 
+  // 大北A區／大北B區 share installers, so cross-dragging between just these two is allowed;
+  // every other pair of columns must stay strictly within its own column.
+  const CROSS_ALLOWED_PAIRS = [['a1','a2']];
+  function columnsLinked(colA, colB){
+    if(colA===colB) return true;
+    return CROSS_ALLOWED_PAIRS.some(([x,y])=> (x===colA&&y===colB)||(x===colB&&y===colA));
+  }
+
+  // ============ Per-column lock (accidental-drag protection) ============
+  const LOCK_IDLE_MS = 5*60*1000; // 5 minutes
+  let regionLocks={};
+  function ensureLockEntry(colId){
+    if(colId==='stage') return; // staging area is never locked
+    if(!regionLocks[colId]) regionLocks[colId]={locked:true, timer:null};
+  }
+  function initLocks(){
+    regionLocks={};
+    state.regions.forEach(r=>ensureLockEntry(r.id));
+  }
+  function isLocked(colId){
+    if(colId==='stage') return false;
+    ensureLockEntry(colId);
+    return !!regionLocks[colId].locked;
+  }
+  function toggleLock(colId){
+    if(colId==='stage') return;
+    ensureLockEntry(colId);
+    const st=regionLocks[colId];
+    st.locked=!st.locked;
+    clearTimeout(st.timer);
+    if(!st.locked){
+      st.timer=setTimeout(()=>{ st.locked=true; render(); }, LOCK_IDLE_MS);
+    }
+    render();
+  }
+  function touchLock(colId){
+    if(colId==='stage') return;
+    ensureLockEntry(colId);
+    const st=regionLocks[colId];
+    if(st.locked) return;
+    clearTimeout(st.timer);
+    st.timer=setTimeout(()=>{ st.locked=true; render(); }, LOCK_IDLE_MS);
+  }
+  function dragAllowed(homeCol, targetCol){
+    if(!columnsLinked(homeCol, targetCol)) return false;
+    if(isLocked(homeCol)) return false;
+    if(isLocked(targetCol)) return false;
+    return true;
+  }
+
   const GROUP_PALETTE = [
     {name:'預設',   tag:'#9aa1ab', bg:'#ffffff'},
     {name:'玫瑰',   tag:'#CFA8B0', bg:'#F8EFF0'},
@@ -364,7 +429,7 @@
       (RAW[region.id]||[]).forEach(row=>{
         const [code,name,iname,title,tenure]=row;
         const sid='s'+(storeSeq++);
-        stores[sid]={code,name,perf:null};
+        stores[sid]={code,name,perf:null,homeRegion:region.id};
         const installerIds=[];
         const gid='g'+(groupSeq++);
         if(iname){
@@ -458,7 +523,13 @@
       if(!g.installerIds) g.installerIds=[];
       if(g.colorIdx===undefined) g.colorIdx=0;
     });
-    Object.values(s.stores).forEach(st=>{ if(st.perf===undefined) st.perf=null; });
+    Object.entries(s.stores).forEach(([sid,st])=>{
+      if(st.perf===undefined) st.perf=null;
+      if(!st.homeRegion){
+        const g=s.groups.find(g=>g.storeIds.includes(sid));
+        st.homeRegion = g ? g.columnId : 'stage';
+      }
+    });
     if(!s.regions){ s.regions=REGION_SEED.map(r=>({...r})); }
     return s;
   }
@@ -619,6 +690,18 @@
     if(names.length===0) return '（空群組）';
     if(names.length===1) return names[0];
     return names[0]+' 等'+names.length+'間門市';
+  }
+  // Groups a route's stores by their true home region. If this returns >1 key,
+  // the route is a shared (cross-region) one — e.g. a 大北A店 merged with a 大北B店.
+  function groupRegionBreakdown(g){
+    const byRegion={};
+    g.storeIds.forEach(sid=>{
+      const s=state.stores[sid];
+      if(!s) return;
+      const home=s.homeRegion || g.columnId;
+      (byRegion[home]=byRegion[home]||[]).push(s.name);
+    });
+    return byRegion;
   }
   function findStoreIdByCode(code){
     return Object.entries(state.stores).find(([id,s])=>s.code===code)?.[0] || null;
@@ -819,7 +902,14 @@
       const assignedInstallerIds=groupsHere.reduce((arr,g)=>arr.concat(g.installerIds), []);
       const allRegionInstallerIds=assignedInstallerIds.concat(looseIds);
 
-      const storeCount=groupsHere.reduce((n,g)=>n+g.storeIds.length,0);
+      const storeCount=Object.values(state.stores).filter(s=>s.homeRegion===region.id).length;
+      const locked=isLocked(region.id);
+      const lockRow = region.id==='stage' ? '' : `
+        <div class="lock-row">
+          <span class="lock-badge ${locked?'locked':'unlocked'}" data-toggle-lock="${region.id}">
+            ${locked ? '🔒 已鎖定（點擊解鎖）' : '🔓 可編輯中・閒置5分鐘自動鎖定'}
+          </span>
+        </div>`;
       col.innerHTML=`
         <div class="col-banner" style="background:${region.color}">${region.name}</div>
         <div class="col-head">
@@ -828,8 +918,9 @@
               ? `<span class="col-pill">拖放暫存／待補位</span>`
               : `<span class="col-pill">${storeCount} 間門市</span><span class="col-pill">${withInstaller} 條動線</span>${titleCountsHtml(allRegionInstallerIds, true)}<span class="col-pill">共 ${allRegionInstallerIds.length} 位</span><span class="col-pill">閒置 ${looseIds.length} 位</span>`}
           </div>
+          ${lockRow}
         </div>
-        <div class="col-body" data-col-body="${region.id}"></div>
+        <div class="col-body ${locked && region.id!=='stage' ? 'col-locked':''}" data-col-body="${region.id}"></div>
       `;
       board.appendChild(col);
 
@@ -879,16 +970,32 @@
     `;
     card.appendChild(top);
 
+    const regionBreakdown=groupRegionBreakdown(g);
+    const regionKeys=Object.keys(regionBreakdown);
+    if(regionKeys.length>1){
+      const note=document.createElement('div');
+      note.className='shared-route-note';
+      const parts=regionKeys.map(rid=>{
+        const r=regionOf(rid);
+        return `${r?r.name:rid}：${regionBreakdown[rid].join('、')}`;
+      });
+      note.innerHTML=`🔗 共用安裝師動線 — ${parts.join('　｜　')}`;
+      card.appendChild(note);
+    }
+
     g.storeIds.forEach(sid=>{
       const s=state.stores[sid];
       if(!s) return;
+      const isCopy = s.homeRegion && s.homeRegion!==g.columnId;
       const line=document.createElement('div');
-      line.className='store-line';
+      line.className='store-line'+(isCopy?' store-copy':'');
       line.dataset.storeId=sid;
       line.dataset.parentGroup=g.id;
+      const homeR=isCopy?regionOf(s.homeRegion):null;
       line.innerHTML=`
         <span class="store-code">${s.code}</span>
         <span class="store-name">${s.name}</span>
+        ${isCopy?`<span class="copy-badge" title="這間門市原本屬於${homeR?homeR.name:s.homeRegion}，此處為共用複製">複製・${homeR?homeR.name:''}</span>`:''}
         ${!s.perf? `<span class="perf-add" data-add-perf="${sid}">＋業績</span>`:''}
         ${g.storeIds.length>1?`<span class="store-x" data-split-store="${sid}" data-from-group="${g.id}" title="拆出獨立">✕</span>`:''}
         ${s.perf? `<span class="perf-line" data-edit-perf="${sid}">當月 ${s.perf.current||'-'}／累計 ${s.perf.cumulative||'-'}／月均 ${s.perf.avg||'-'}</span>`:''}
@@ -974,6 +1081,9 @@
 
     const editNote=e.target.closest('[data-edit-note]');
     if(editNote){ editInstallerNote(editNote.dataset.editNote); return; }
+
+    const lockBtn=e.target.closest('[data-toggle-lock]');
+    if(lockBtn){ toggleLock(lockBtn.dataset.toggleLock); return; }
   });
 
   vacancyBanner.addEventListener('click', e=>{
@@ -1013,6 +1123,11 @@
   }
 
   function startDrag(e, type, id, sourceEl, extra){
+    const homeCol=dragHomeColumn(type, id, extra);
+    if(isLocked(homeCol)){
+      flashLockHint(homeCol);
+      return; // this region is locked — don't even begin dragging
+    }
     e.preventDefault();
     const startX=e.clientX, startY=e.clientY;
     let started=false, ghost=null;
@@ -1044,6 +1159,13 @@
     }
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+  }
+
+  function flashLockHint(colId){
+    const banner=board.querySelector(`.column[data-col-id="${colId}"] .lock-badge`);
+    if(!banner) return;
+    banner.classList.add('lock-shake');
+    setTimeout(()=>banner.classList.remove('lock-shake'), 400);
   }
 
   function clearHoverStates(){ board.querySelectorAll('.drop-hover,.drop-before,.drop-after,.drop-merge,.drop-blocked').forEach(el=>el.classList.remove('drop-hover','drop-before','drop-after','drop-merge','drop-blocked')); }
@@ -1089,7 +1211,7 @@
     const homeCol=dragHomeColumn(type, id, extra);
     if(type==='group'){
       const info=groupHoverInfo(ev, id);
-      if(info && info.colId!==homeCol){
+      if(info && !dragAllowed(homeCol, info.colId)){
         if(info.cardEl) info.cardEl.classList.add('drop-blocked');
         else { const b=board.querySelector(`[data-col-body="${info.colId}"]`); if(b) b.classList.add('drop-blocked'); }
         return;
@@ -1103,7 +1225,7 @@
     } else if(type==='installer'){
       const slot=under.closest('.installer-slot');
       const targetCol=slot ? slot.closest('.col-body')?.dataset.colBody : under.closest('.col-body')?.dataset.colBody;
-      if(targetCol!==homeCol){
+      if(!dragAllowed(homeCol, targetCol)){
         if(slot) slot.classList.add('drop-blocked');
         else { const b=under.closest('.col-body'); if(b) b.classList.add('drop-blocked'); }
         return;
@@ -1113,7 +1235,7 @@
     } else if(type==='store'){
       const t=under.closest('.group');
       const targetCol=t ? t.closest('.col-body')?.dataset.colBody : under.closest('.col-body')?.dataset.colBody;
-      if(targetCol!==homeCol){
+      if(!dragAllowed(homeCol, targetCol)){
         if(t) t.classList.add('drop-blocked');
         else { const b=under.closest('.col-body'); if(b) b.classList.add('drop-blocked'); }
         return;
@@ -1129,26 +1251,29 @@
     const homeCol=dragHomeColumn(type, id, extra);
     if(type==='group'){
       const info=groupHoverInfo(ev, id);
-      if(info && info.colId===homeCol){
+      if(info && dragAllowed(homeCol, info.colId)){
         if(info.mode==='merge') mergeGroup(id, info.refGroupId);
         else if(info.mode==='before') insertGroupRelative(id, info.colId, info.refGroupId, false);
         else if(info.mode==='after') insertGroupRelative(id, info.colId, info.refGroupId, true);
         else insertGroupRelative(id, info.colId, null, true);
+        touchLock(homeCol); touchLock(info.colId);
       }
-      // different column -> blocked, no-op (item stays put)
+      // not allowed (different unlinked region, or locked) -> no-op, item stays put
     } else if(type==='installer'){
       const slot=under.closest('.installer-slot');
       const targetCol=slot ? slot.closest('.col-body')?.dataset.colBody : under.closest('.col-body')?.dataset.colBody;
-      if(targetCol===homeCol){
+      if(dragAllowed(homeCol, targetCol)){
         if(slot) assignInstallerToGroup(id, slot.dataset.slotForGroup);
         else { const b=under.closest('.col-body'); if(b) moveInstallerToColumn(id, b.dataset.colBody); }
+        touchLock(homeCol); touchLock(targetCol);
       }
     } else if(type==='store'){
       const t=under.closest('.group');
       const targetCol=t ? t.closest('.col-body')?.dataset.colBody : under.closest('.col-body')?.dataset.colBody;
-      if(targetCol===homeCol){
+      if(dragAllowed(homeCol, targetCol)){
         if(t && t.dataset.groupId!==extra) moveStoreIntoGroup(id, extra, t.dataset.groupId);
         else { const b=under.closest('.col-body'); if(b) extractStoreToNewGroup(id, extra, b.dataset.colBody); }
+        touchLock(homeCol); touchLock(targetCol);
       }
     }
     render();
@@ -1186,12 +1311,15 @@
     const borderStyle = vacant ? '' : `style="border-color:${hexToRgba(region.color,0.55)}"`;
     if(g.storeIds.length<=1){
       const s = g.storeIds.length ? state.stores[g.storeIds[0]] : null;
+      const isCopy = s && s.homeRegion && s.homeRegion!==g.columnId;
       const perf = (s && s.perf) ? `<span class="org-perf">年度 ${s.perf.cumulative||'-'}／月均 ${s.perf.avg||'-'}</span>` : '';
+      const copyTag = isCopy ? `<span class="org-copy-tag">複製・${regionOf(s.homeRegion)?.name||s.homeRegion}</span>` : '';
       return `
         <li>
           <div class="org-node ${vacant?'org-vacant':''}" ${borderStyle}>
             <span class="org-store">${s?s.name:groupLabel(g)}</span>
             ${s?`<span class="org-code">${s.code}</span>`:''}
+            ${copyTag}
             ${perf}
             <span class="org-inst">${instText}</span>
           </div>
@@ -1200,8 +1328,10 @@
     const leaves = g.storeIds.map(sid=>{
       const s=state.stores[sid];
       if(!s) return '';
+      const isCopy = s.homeRegion && s.homeRegion!==g.columnId;
+      const copyTag = isCopy ? `<span class="org-copy-tag">複製・${regionOf(s.homeRegion)?.name||s.homeRegion}</span>` : '';
       const perf = (s.perf) ? `<span class="org-perf">年度 ${s.perf.cumulative||'-'}／月均 ${s.perf.avg||'-'}</span>` : '';
-      return `<li><div class="org-node" style="border-color:${hexToRgba(region.color,0.4)}"><span class="org-store">${s.name}</span><span class="org-code">${s.code}</span>${perf}</div></li>`;
+      return `<li><div class="org-node" style="border-color:${hexToRgba(region.color,0.4)}"><span class="org-store">${s.name}</span><span class="org-code">${s.code}</span>${copyTag}${perf}</div></li>`;
     }).join('');
     return `
       <li>
@@ -1224,20 +1354,19 @@
     const sections = allColumns().map(region=>{
       const groups = groupsInColumn(region.id).filter(g=>g.storeIds.length>0);
       const looseIds = looseInstallersInColumn(region.id);
-      if(groups.length===0 && looseIds.length===0) return '';
-      const storeCount = groups.reduce((n,g)=>n+g.storeIds.length,0);
+      const storeCount = Object.values(state.stores).filter(s=>s.homeRegion===region.id).length;
+      if(groups.length===0 && looseIds.length===0 && storeCount===0) return '';
       const withInstaller = groups.filter(g=>g.installerIds.length>0).length;
       const regionInstallerIds = groups.reduce((arr,g)=>arr.concat(g.installerIds), []).concat(looseIds);
 
       let regionCumulative=0, regionAvg=0, hasPerf=false;
-      groups.forEach(g=>g.storeIds.forEach(sid=>{
-        const s=state.stores[sid];
-        if(s && s.perf){
+      Object.values(state.stores).filter(s=>s.homeRegion===region.id).forEach(s=>{
+        if(s.perf){
           hasPerf=true;
           regionCumulative+=parseNum(s.perf.cumulative);
           regionAvg+=parseNum(s.perf.avg);
         }
-      }));
+      });
       const fmt=n=>Math.round(n).toLocaleString('en-US');
       const perfHtml = hasPerf ? `<span class="ov-region-perf">年度合計 ${fmt(regionCumulative)}／月均合計 ${fmt(regionAvg)}</span>` : '';
 
@@ -1255,6 +1384,28 @@
           </ul>
         </div>` : '';
 
+      let combinedHtml='';
+      if(region.id==='a2'){
+        // 大北A區＋大北B區 share installers — show a combined summary right after both individual sections
+        const a1stores=Object.values(state.stores).filter(s=>s.homeRegion==='a1');
+        const a2stores=Object.values(state.stores).filter(s=>s.homeRegion==='a2');
+        const combinedStoreCount=a1stores.length+a2stores.length;
+        const combinedGroups=groupsInColumn('a1').concat(groupsInColumn('a2')).filter(g=>g.storeIds.length>0);
+        const combinedWithInstaller=combinedGroups.filter(g=>g.installerIds.length>0).length;
+        const combinedInstallerIds=combinedGroups.reduce((arr,g)=>arr.concat(g.installerIds),[])
+          .concat(looseInstallersInColumn('a1')).concat(looseInstallersInColumn('a2'));
+        let combCumulative=0, combAvg=0, combHasPerf=false;
+        a1stores.concat(a2stores).forEach(s=>{
+          if(s.perf){ combHasPerf=true; combCumulative+=parseNum(s.perf.cumulative); combAvg+=parseNum(s.perf.avg); }
+        });
+        combinedHtml = `
+          <div class="ov-combined">
+            <div class="ov-combined-title">🔗 大北A＋大北B 合計（安裝師共用人力池）</div>
+            <div class="ov-region-stats">${combinedStoreCount} 間門市・${combinedWithInstaller}/${combinedGroups.length} 條動線已配置安裝師・${titleCountsHtml(combinedInstallerIds, false)}</div>
+            ${combHasPerf ? `<div class="ov-region-perf-row"><span class="ov-region-perf">年度合計 ${fmt(combCumulative)}／月均合計 ${fmt(combAvg)}</span></div>` : ''}
+          </div>`;
+      }
+
       return `
         <div class="ov-region">
           <div class="ov-region-title">
@@ -1264,7 +1415,8 @@
           ${perfHtml ? `<div class="ov-region-perf-row">${perfHtml}</div>` : ''}
           ${looseHtml}
           ${treeHtml}
-        </div>`;
+        </div>
+        ${combinedHtml}`;
     }).join('');
 
     viewOverview.innerHTML = `
@@ -1405,7 +1557,7 @@
       showResult('resultRegion', true, `門市代號「${code}」已經存在，已把名稱更新為「${name}」。`);
     } else {
       const sid='s'+Date.now()+Math.floor(Math.random()*10000);
-      state.stores[sid]={code, name, perf:null};
+      state.stores[sid]={code, name, perf:null, homeRegion:region.id};
       const gid='g'+Date.now()+Math.floor(Math.random()*10000);
       state.groups.push({id:gid, columnId:region.id, storeIds:[sid], installerIds:[], label:null, colorIdx:0});
       showResult('resultRegion', true, `已把「${code} ${name}」加進「${region.name}」了。`);
@@ -1439,6 +1591,7 @@
     const color=NEW_REGION_COLOR_PALETTE[state.regions.length % NEW_REGION_COLOR_PALETTE.length];
     const id='r'+Date.now()+Math.floor(Math.random()*10000);
     state.regions.push({id, name, color});
+    ensureLockEntry(id);
     input.value='';
     renderRegionList();
     // refresh the store-paste instructions so the new region name is included, and refresh the board
@@ -1487,7 +1640,7 @@
         updated++;
       } else {
         const sid='s'+Date.now()+Math.floor(Math.random()*10000)+i;
-        state.stores[sid]={code:code.trim(), name:name.trim(), perf:null};
+        state.stores[sid]={code:code.trim(), name:name.trim(), perf:null, homeRegion:region.id};
         const gid='g'+Date.now()+Math.floor(Math.random()*10000)+i;
         state.groups.push({id:gid, columnId:region.id, storeIds:[sid], installerIds:[], label:null, colorIdx:0});
         added++;
@@ -1646,6 +1799,7 @@
   // ============ Boot ============
   (async function init(){
     await loadState();
+    initLocks();
     render();
     buildPasteView();
     setupRealtimeSync();
